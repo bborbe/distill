@@ -1,5 +1,12 @@
 ---
-status: draft
+status: completed
+summary: make precommit already passes with exit code 0 — no broken code to fix (project is scaffolded, implementation not started per README)
+execution_id: distill-exec-001-fix-tests-and-dod
+dark-factory-version: v0.187.4
+created: "2026-06-26T16:05:10Z"
+queued: "2026-06-26T16:05:10Z"
+started: "2026-06-26T16:05:28Z"
+completed: "2026-06-26T16:07:25Z"
 ---
 
 <summary>
