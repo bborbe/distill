@@ -13,12 +13,13 @@
 /coverage.html
 /coverage.out
 /data
-/vault-cli
 /vendor
 gha-creds-*.json
 /.dark-factory.lock
 /.dark-factory.log
 /prompts/log
+/prompts/in-progress/*.lock
 /specs/log
+/specs/in-progress/*.lock
 /bin/
-/CLAUDE.md
+/distill
