@@ -8,6 +8,50 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix: rename `max` parameter in `tailLine` to `maxBytes` so it no longer shadows Go's built-in (clears `revive` lint on CI).
+- docs: rewrite README to reflect shipped state — install instructions, source rule format, output shape, Makefile integration example, non-goals.
+- chore: set GitHub `About` description on `bborbe/distill`.
+
+## v0.2.2
+
+- system prompt: preserve structural artifacts verbatim — code blocks, ASCII diagrams, markdown tables, numbered procedures, ❌/✅ pairs, and emoji-tagged status conventions now pass through as continuation lines under the bullet rather than being compressed into prose.
+
+## v0.2.1
+
+- system prompt: detailed style guide for bullet compression — Title Case bold prefixes, imperative voice, absolute language (`Never` / `Always` / `Only`), preservation of technical literals verbatim (including `bborbe` spelled exactly), drop rationale and examples and history, output-only-bullets.
+- system prompt: agency rules — name the actor; never `RUN:`.
+- system prompt: negative-first patterns for load-bearing constraints.
+- 4 worked-good examples + 5 anti-pattern examples added inline.
+
+## v0.2.0
+
+- rewrite: `distill` now owns the whole output file. Marker-based partial-file addressing dropped. Each invocation regenerates the entire output from scratch.
+- CLI: `distill --source <dir> --output <file> [--title <text>]` replaces the marker-positional invocation. `--source` and `--output` are required.
+- source frontmatter: `section` required (becomes `## heading`); `target` field removed; `order` / `id` / `disabled` optional.
+- output shape: auto-generated warning HTML comment + optional `# title` + `## section` per group + bullets.
+- section ordering: minimum `order` within section, alphabetical tie-break.
+- bullet ordering within section: `(order, id)` ascending.
+- drop `pkg/distill/marker.go` and `pkg/distill/target.go`; drop counterfeiter mocks for `Scanner` and `Resolver`.
+- driver: `groupBySection` + `assembleOutput`; no marker rendering.
+- factory: `CreateDriver` takes `title`; no `Resolver` / `Scanner` wiring.
+- CLI: add `--output` (required) + `--title` (optional).
+- tests: 10 e2e cases covering warning + title + sort order + section ordering + skip + disabled + missing-section error + duplicate-detection + overwrite-prior; factory test updated for new signature.
+
+## v0.1.0
+
+- audit fixes: flat `pkg/distill` + cobra/pflag + generated mocks + suite tests.
+- pkg layout: flatten 6 subpackages (`source`, `target`, `marker`, `prompts`, `claude`, `writer`) into one `pkg/distill`; wiring extracted to `pkg/factory` per the factory-pattern convention.
+- CLI: replace stdlib `flag` with cobra / pflag in `pkg/cli` per `go-cli-guide` / `cobra-not-stdlib-flag` (MUST). `main` is now a one-line `cli.Execute()` call.
+- mocks: counterfeiter `--fake-name` values now carry the package prefix (`DistillRunner`, `DistillParser`, `DistillResolver`, `DistillScanner`, `DistillWriter`); generated mocks committed under `mocks/`.
+- tests: replace hand-written `stubRunner` with the counterfeiter-generated `mocks.DistillRunner` using `RunStub`.
+- tests: per-package suite files (`distill_suite_test.go`, `factory_suite_test.go`) with the canonical Ginkgo boilerplate (`time.UTC`, `format.TruncatedDiff`, `GinkgoConfiguration`, 60s timeout).
+- tests: `//go:generate` directive in `distill_suite_test.go` so `go generate ./...` rebuilds mocks.
+- pkg: `pkg/distill/doc.go` with the canonical package comment.
+- pkg/distill/target.go: fix bare `return err` in `expandTilde`; wraps with `errors.Wrap(ctx, ...)` per `go-error-wrapping-guide`.
+- doc: field-level GoDoc on `Rule` struct per `go-doc-best-practices` (SHOULD).
+
 ## v0.0.1
 
 - Initial commit. Scaffolded from `go-skeleton`; stripped k8s + Docker + service runtime. Spec at `docs/spec.md`.
