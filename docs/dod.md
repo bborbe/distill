@@ -12,17 +12,15 @@ After completing your implementation, review your own changes against each crite
 
 ## Contract Conformance
 
-- Changes match `docs/spec.md` (frontmatter contract, marker convention, target resolution, idempotency, error cases). If `docs/spec.md` needs to change, change it first and call it out.
-- Idempotency holds: re-running `distill` on unchanged sources writes zero bytes.
-- All exit codes from `docs/spec.md` (`0` / `1` / `2` / `3`) are reachable from the implementation.
+- Changes match `docs/spec.md` (frontmatter contract, marker convention, target resolution, error cases, Claude invocation). If `docs/spec.md` needs to change, change it first and call it out.
+- All exit codes from `docs/spec.md` (`0` / `1` / `2`) are reachable from the implementation.
 
 ## Testing
 
 - New code has good test coverage (target >= 80%)
 - Changes to existing code have tests covering at least the changed behavior
 - Tests use Ginkgo v2 / Gomega with Counterfeiter mocks
-- An end-to-end test exercises the worked example from `docs/spec.md` (source dir + before-target → expected-after-target) and asserts byte-exact match
-- A second-run idempotency test asserts zero diff after the first write
+- An end-to-end test exercises the worked example from `docs/spec.md` against a stub `ClaudeRunner` and asserts that the stubbed output lands between markers + operator prose outside markers is preserved byte-for-byte
 
 ## Install
 

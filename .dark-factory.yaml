@@ -1,6 +1,7 @@
 autoGeneratePrompts: true
 autoRelease: false
 maxContainers: 8
+model: claude-sonnet-4-6
 pr: false
 preflightCommand: "make precommit"
 preflightInterval: "8h"

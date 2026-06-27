@@ -73,7 +73,8 @@ This project follows the [coding-guidelines](https://github.com/bborbe/coding-gu
 
 ## Key Design Decisions
 
-- **Source is the authority** — per-rule `.md` files declare `target:` + `section:`; the CLI compiles them into derived blocks
-- **Markers delimit derived content** — `<!-- begin:rules section=<name> -->...<!-- end:rules section=<name> -->`; free-form prose around markers is preserved
-- **Idempotent** — re-running on unchanged sources yields zero diff
+- **Source is the authority** — per-rule `.md` files declare `target:` + `section:` in frontmatter; full body is the rule
+- **LLM compresses at compile time** — `distill` bundles sources per group, calls `claude --print`, writes the returned bullets between markers. No cache, no idempotency in v1; every run hits Claude.
+- **Markers delimit derived content** — `<!-- begin:distill section="X" -->...<!-- end:distill section="X" -->`; operator prose outside markers is preserved byte-for-byte
+- **`ClaudeRunner` is an interface** — mockable for unit / E2E tests so the test suite never spawns the real `claude` CLI
 - **No watch / daemon mode** — one-shot CLI; re-run as needed

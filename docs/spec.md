@@ -1,10 +1,20 @@
 # distill — Specification
 
-`distill` reads a folder of detailed per-rule markdown files and writes short imperative one-liners between fenced markers in one or more target files. Source files are the authority. Targets are derived, never hand-edited.
+`distill` reads a folder of detailed per-rule markdown files, sends them to Claude Code (`claude --print`) with a compression prompt, and writes the returned compact output between fenced markers in one or more target files.
 
 ## Goal
 
-Replace the manual "long-form Rules section → derive a one-liner → paste into CLAUDE.md → bump date" workflow with an idempotent compiler.
+Replace the manual "long-form rule → derive a one-liner → paste into CLAUDE.md" workflow with a single CLI call. The author writes long-form rules; `distill` calls Claude to compress; the target file is regenerated.
+
+## Non-goals (v1)
+
+- No caching. Every run calls Claude.
+- No idempotency contract. Re-running on unchanged sources may produce different output (LLM is non-deterministic). Accepted.
+- No `--check` mode. (Cannot exist without cache.)
+- No watch / daemon mode. One-shot CLI.
+- No creating target files; they must exist with markers in place.
+- No content validation of source files beyond frontmatter parsing.
+- No multi-target broadcasting from a single source file.
 
 ## CLI
 
@@ -14,73 +24,57 @@ distill --source <dir>
 
 | Flag | Required | Meaning |
 |---|---|---|
-| `--source <dir>` | yes | Folder containing source rule files (one rule per file) |
-| `--check` | no | Exit non-zero if any target file would change. Used in CI / pre-commit. |
-| `--verbose` | no | Print per-rule decisions to stderr. |
+| `--source <dir>` | yes | Folder containing source rule files |
+| `--model <name>` | no | Claude model name (default: `sonnet`) |
+| `--verbose` | no | Print per-group prompts + Claude responses to stderr |
 
 Exit codes:
 
 | Code | Meaning |
 |---|---|
-| `0` | All targets up to date (no change), or all changes applied successfully |
-| `1` | Generic failure (parse error, IO error, unresolved target) |
+| `0` | All targets written successfully |
+| `1` | Generic failure (parse error, IO error, Claude error, unresolved target, missing marker) |
 | `2` | Usage / argument error |
-| `3` | `--check` mode: targets out of date (no files modified) |
 
 ## Source File Format
 
-Each source file is a markdown file with YAML frontmatter and a `## TL;DR` section. The TL;DR is what `distill` emits into the target.
+Each source file is a markdown file with YAML frontmatter declaring `distill:` metadata and a markdown body containing the rule (long-form: rationale, examples, anti-patterns — whatever the author wants).
 
 ```markdown
 ---
 distill:
-  target: global              # required: alias or absolute path
-  section: Git                # required: heading text in target
+  target: global              # required: alias or path
+  section: Git                # required: marker section name in target
   order: 10                   # optional: sort key within section (lower first; default 100)
-  id: no-git-c-flag           # optional: stable id (defaults to filename without .md)
+  id: no-git-c-flag           # optional: stable id (defaults to filename stem)
+  disabled: false             # optional: skip emission
 ---
 
 # Rule: No `git -C` Flag
 
-## TL;DR
-Never `git -C /path` or `cd /path && git ...`; first `cd /path`, then run git commands in subsequent Bash calls.
+Never use `git -C /path ...` or `cd /path && git ...` — both break the Bash auto-approval matcher.
+The fix is to issue the `cd` as its own Bash call, then run plain `git status` / `git diff` etc.
 
-## Why
-…long-form rationale…
-
-## Examples
-…wrong / right…
-
-## Anti-patterns
-…seductive almost-right shapes…
-
-## When to remove
-Permanent; no removal trigger.
+Examples
+- Wrong: `git -C ~/repo status`
+- Right: first call `cd ~/repo`, then second call `git status`
 ```
+
+The full source body — not just a TL;DR section — is sent to Claude as the input to compress.
 
 ### Frontmatter contract
 
-The `distill:` block is the only frontmatter `distill` reads. Anything else (Obsidian metadata, page_type, etc.) is ignored.
+The `distill:` block is the only frontmatter `distill` reads. Anything else is ignored.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `target` | string | yes | Where the derived bullet lands. Either a registered alias (see "Target Resolution") or a path. |
-| `section` | string | yes | Heading text in the target file. Must match exactly (modulo leading `##`). |
+| `target` | string | yes | Where the compressed line lands. Either alias (`global`, `vault`) or a path. |
+| `section` | string | yes | Marker section name in the target file. Must match exactly (modulo quoting). |
 | `order` | int | no | Sort key within section. Default `100`. Stable sort on ties (then by `id`). |
-| `id` | string | no | Stable identifier. Used in tie-breaking and for the optional `<!-- rule:<id> -->` anchor. Defaults to filename stem. |
-| `disabled` | bool | no | If `true`, source is parsed but not emitted. For staging removals before deletion. |
+| `id` | string | no | Stable identifier. Defaults to filename stem. |
+| `disabled` | bool | no | If `true`, source is loaded but not sent to Claude / not emitted. |
 
-A source file with no `distill:` block is silently skipped (treated as documentation in the source folder, not a rule).
-
-### TL;DR extraction
-
-`distill` reads the content under the `## TL;DR` heading until the next `##` heading or EOF. Leading/trailing whitespace and trailing newlines are stripped. The block is emitted **verbatim** into the target (no rewrap, no rewrite).
-
-A source file missing `## TL;DR` is an error (exit 1).
-
-### One rule per file
-
-Each source file emits exactly one bullet into exactly one target/section. Multi-target broadcasting is non-goal.
+A source file with no `distill:` block is silently skipped (treated as docs in the source folder).
 
 ## Target Resolution
 
@@ -89,87 +83,86 @@ Each source file emits exactly one bullet into exactly one target/section. Multi
 | Form | Resolves to |
 |---|---|
 | `global` | `~/.claude/CLAUDE.md` |
-| `vault` | `$DISTILL_VAULT_CLAUDE_MD` if set, else error |
-| Absolute path (starts with `/` or `~`) | That path, with `~` expanded |
+| `vault` | `$DISTILL_VAULT_CLAUDE_MD` if set, else error (exit 1) |
+| Absolute / `~`-prefixed path | That path, with `~` expanded |
 | Relative path | Resolved against the CWD where `distill` was invoked |
 
-Aliases are not configurable in v1. `global` and `vault` are the only built-ins; everything else is an explicit path.
-
-A target file that does not exist is an error (exit 1) — `distill` does not create targets.
+`distill` does NOT create target files. Missing target → exit 1.
 
 ## Marker Convention
 
-Each target section that `distill` owns is delimited by a matching pair of HTML-comment markers:
+Each target section that `distill` owns is delimited by a pair of HTML-comment markers:
 
 ```markdown
 ## Git
 
-Some free-form prose. Stays as-is.
+Some operator prose. Preserved verbatim.
 
 <!-- begin:distill section="Git" -->
-- Rule one one-liner.
-- Rule two one-liner.
+- (compressed lines land here)
 <!-- end:distill section="Git" -->
 
-More free-form prose. Stays as-is.
+More operator prose. Preserved verbatim.
 ```
 
 Rules:
 
-1. The `section="…"` attribute on `begin:distill` and `end:distill` must match exactly.
-2. The section name in the marker must match `section:` from at least one source file with `target:` matching this file.
-3. Content outside marker pairs is **preserved verbatim** — `distill` never edits it.
-4. Content between markers is **replaced wholesale** on every run; never edit it by hand.
-5. A target file may contain multiple `begin:distill` / `end:distill` pairs (one per section).
-6. The order of pairs in the target file is the operator's choice and is preserved across runs.
+1. `section="…"` on `begin:distill` and `end:distill` must match exactly.
+2. Content outside marker pairs is preserved verbatim.
+3. Content between markers is replaced wholesale on every run.
+4. A target file may contain multiple `begin:distill` / `end:distill` pairs (one per section).
+5. The order of pairs in the target file is the operator's choice and is preserved.
 
-## Section Addressing
+## Compression Prompt
 
-`section:` from source must equal the `section="…"` attribute on a matching marker pair in the resolved target file. `distill` does NOT scan for or create `##` headings — the marker is the addressing primitive, not the heading. (The operator places markers under whichever heading they like; `distill` only writes between markers.)
+Per (target, section) group, `distill` builds a prompt by concatenating:
 
-## Output Format
+1. An embedded system instruction (from `pkg/prompts/system.md` — owned by the binary): "Compress each input rule into one short imperative sentence. Preserve technical literals (commands, env vars, paths) verbatim. No rationale. Output as a markdown bullet list, one bullet per rule, in the order given. No preamble or postamble — bullets only."
+2. The source bodies (in order: `order` ascending, then `id` ascending), each prefixed with a delimiter like `--- rule <id> ---`.
 
-Inside each marker pair, `distill` emits, in order:
+The prompt is sent to Claude via `claude --print --output-format stream-json --verbose`, prompt on stdin. The `result` event's `result` field is the compressed block.
 
-1. Source rules with matching `target:` + `section:`, sorted by `order` ascending then `id` ascending.
-2. Each rule is rendered as one bullet: the TL;DR block prefixed with `- ` on the first line. Subsequent lines of the TL;DR are indented two spaces.
-3. A trailing newline terminates the marker block.
+The compressed block is written verbatim between the section's markers, preceded and followed by exactly one newline.
 
-No rule = empty marker block (single newline between begin and end). No header. No surrounding blank lines.
+## Claude Invocation
 
-## Idempotency Contract
+`distill` uses the same subprocess pattern as `bborbe/agent/claude.ClaudeRunner`:
 
-For any source folder S and target T:
+- `exec.CommandContext(ctx, "claude", "--print", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--model", <model>)`
+- Prompt on stdin
+- Parse stream-JSON output for the final `result` event
+- Trim trailing whitespace; otherwise verbatim
 
-```
-distill --source S                   # first run, may write
-distill --source S                   # second run, MUST write zero bytes
-diff before-run-1 after-run-1        # may be non-empty
-diff after-run-1 after-run-2         # MUST be empty
-```
-
-Achieved by:
-
-- Stable sort (`order` then `id`)
-- Verbatim TL;DR (no reformatting)
-- LF line endings; no trailing whitespace on emitted lines
-- One trailing `\n` at end of marker block; no extras
-- `--check` mode compares would-write bytes to current file bytes; exit 3 on mismatch.
+If the `claude` binary is missing on `$PATH`, exit 1 with a clear message.
 
 ## Error Cases
 
 | Case | Behaviour |
 |---|---|
-| Source file missing `## TL;DR` | Error, exit 1, name file in stderr. |
-| Source file missing required `distill:` frontmatter | Skipped silently (treated as docs). |
-| Source `target:` is alias `vault` but `$DISTILL_VAULT_CLAUDE_MD` unset | Error, exit 1. |
-| Target file does not exist | Error, exit 1 (distill never creates targets). |
-| Target file contains `begin:distill section="X"` with no matching `end:distill section="X"` | Error, exit 1 ("orphan begin marker"). |
-| Target file contains `end:distill section="X"` with no preceding `begin:distill section="X"` | Error, exit 1 ("orphan end marker"). |
-| Target file has no marker matching a source's `section:` | Error, exit 1, name source file + target + section in stderr. |
-| Two source files resolve to same `(target, section, order, id)` | Error, exit 1, name both source files. |
-| Marker exists in target but no source file targets it | Warning to stderr; marker block emptied. Not an error. |
-| Source file has `disabled: true` | Parsed, not emitted. No error. |
+| Source file missing required `distill:` frontmatter | Skipped silently. |
+| Source `target: vault` but `$DISTILL_VAULT_CLAUDE_MD` unset | Exit 1; stderr names the env var. |
+| Target file does not exist | Exit 1; stderr names the resolved path. |
+| Target file has orphan `begin:distill` / `end:distill` (unmatched pair) | Exit 1; stderr names target + section + orphan kind. |
+| Target file has no marker matching a source's `section:` | Exit 1; stderr names source + target + section. |
+| Two source files share identical `(target, section, order, id)` | Exit 1; stderr names both source files. |
+| Marker pair in target with no source claiming that section | Warning to stderr; marker block emitted empty. Not an error. |
+| `claude` CLI exits non-zero | Exit 1; stderr names the group + tail of Claude's stderr. |
+| `claude` CLI not on `$PATH` | Exit 1; stderr names the binary. |
+| Source folder missing / unreadable | Exit 1. |
+| `--source` flag missing | Exit 2; stderr prints usage. |
+
+## Architecture
+
+- `main.go` — flag parsing, exit codes
+- `pkg/cli/` — driver: orchestrate parser → resolver → grouper → claude runner → writer
+- `pkg/source/` — parse source folder; extract frontmatter + body
+- `pkg/target/` — alias / path resolution
+- `pkg/marker/` — scan target into (prose, marker-pair) regions
+- `pkg/prompts/` — embedded system prompt (`//go:embed system.md`)
+- `pkg/claude/` — thin wrapper around `exec.CommandContext("claude", ...)`, stream-JSON parsing; mockable for tests
+- `pkg/writer/` — replace marker contents in target file
+
+Tests mock `pkg/claude` so unit / E2E tests are deterministic and offline. The real Claude call only happens when the operator runs the binary.
 
 ## Worked Example
 
@@ -194,52 +187,13 @@ distill:
 
 # Rule: No `git -C` Flag
 
-## TL;DR
-Never `git -C /path` or `cd /path && git ...` — both break auto-approval. First `cd /path`, then separate Bash calls for `git status`, `git diff`, etc.
+`git -C /path …` and `cd /path && git …` both break the Bash auto-approval matcher
+because the matcher keys on the literal command shape. Splitting `cd` into its own
+Bash call keeps subsequent `git status` / `git diff` calls auto-approved.
 
-## Why
-The Bash auto-approval rule keys on the literal command shape; `git -C` and `cd && git` both fall through to the prompt. Splitting the cd into its own call keeps subsequent git commands auto-approved.
-
-## When to remove
-Remove once Bash auto-approval matches on resolved commands, not literal strings.
-```
-
-### `git-no-claude-attribution.md`
-
-```markdown
----
-distill:
-  target: global
-  section: Git
-  order: 20
----
-
-# Rule: No Claude Attribution in Commits
-
-## TL;DR
-No Claude attribution in commits — no "Generated with Claude Code", no "Co-Authored-By".
-
-## When to remove
-Permanent; no removal trigger.
-```
-
-### `obsidian-no-h1.md`
-
-```markdown
----
-distill:
-  target: vault
-  section: Critical Rules
-  order: 30
----
-
-# Rule: No H1 Headers in Vault Pages
-
-## TL;DR
-No H1 headers — filename = title.
-
-## When to remove
-Permanent; no removal trigger.
+Examples:
+- Wrong: `git -C ~/repo status`
+- Right: call `cd ~/repo` first, then `git status` in a separate Bash call.
 ```
 
 ### Target before run — `~/.claude/CLAUDE.md`
@@ -247,98 +201,48 @@ Permanent; no removal trigger.
 ```markdown
 # Global Preferences
 
-…free-form prose…
-
 ## Git
 
-Some operator prose about git.
+Some operator prose.
 
 <!-- begin:distill section="Git" -->
 <!-- end:distill section="Git" -->
 
-…more prose…
-```
-
-### Target before run — vault `CLAUDE.md` (resolved via `$DISTILL_VAULT_CLAUDE_MD`)
-
-```markdown
-# CLAUDE.md
-
-Obsidian vault assistant.
-
-## Critical Rules
-
-<!-- begin:distill section="Critical Rules" -->
-<!-- end:distill section="Critical Rules" -->
+More prose.
 ```
 
 ### Run
 
 ```bash
-export DISTILL_VAULT_CLAUDE_MD=~/Documents/Obsidian/Personal/CLAUDE.md
 distill --source "~/Documents/Obsidian/Personal/50 Knowledge Base/CLAUDE Rules"
 ```
 
-### Target after run — `~/.claude/CLAUDE.md`
+### Target after run — `~/.claude/CLAUDE.md` (illustrative; exact wording is Claude's call)
 
 ```markdown
 # Global Preferences
 
-…free-form prose…
-
 ## Git
 
-Some operator prose about git.
+Some operator prose.
 
 <!-- begin:distill section="Git" -->
-- Never `git -C /path` or `cd /path && git ...` — both break auto-approval. First `cd /path`, then separate Bash calls for `git status`, `git diff`, etc.
+- Never `git -C /path` or `cd /path && git ...`; first `cd /path`, then run git in a separate Bash call.
 - No Claude attribution in commits — no "Generated with Claude Code", no "Co-Authored-By".
 <!-- end:distill section="Git" -->
 
-…more prose…
+More prose.
 ```
 
-### Target after run — vault `CLAUDE.md`
-
-```markdown
-# CLAUDE.md
-
-Obsidian vault assistant.
-
-## Critical Rules
-
-<!-- begin:distill section="Critical Rules" -->
-- No H1 headers — filename = title.
-<!-- end:distill section="Critical Rules" -->
-```
-
-### Second run
-
-```bash
-distill --source "~/Documents/Obsidian/Personal/50 Knowledge Base/CLAUDE Rules" --check
-echo $?  # 0
-```
-
-Zero diff. `--check` exits 0.
-
-## Non-goals
-
-- **Watch / daemon mode.** One-shot CLI; re-run as needed.
-- **Multi-target broadcasting from one source.** One rule = one target/section.
-- **Configurable aliases beyond `global` + `vault`.** Use absolute paths for anything else.
-- **Creating target files.** `distill` only writes between existing markers in existing files.
-- **Markdown linting / content validation.** Source authoring quality is not `distill`'s concern.
-- **Header / heading management.** `distill` does not insert `##` headings or rewrite operator prose outside markers.
-- **Rule discovery beyond the declared source folder.** No recursion into linked repos, no Obsidian dataview emulation.
-- **Atomic multi-target writes.** Each target is rewritten in-place; on partial failure mid-run, earlier targets remain mutated.
+The exact bullet wording is the LLM's choice within the system-prompt constraints. Re-running may produce slightly different phrasing; that is accepted in v1.
 
 ## Relationship to existing manual workflow
 
-Replaces these manual steps from [[Update CLAUDE.md]] runbook:
+Replaces the manual "derive a TL;DR by hand → paste into CLAUDE.md → bump date" loop from [[Update CLAUDE.md]]. The author writes the long-form rule once; `distill` and Claude do the compression and the paste.
 
-- Step 4 (derive TL;DR by hand) — `distill` reads `## TL;DR` directly.
-- Step 5 (paste into matching section) — `distill` writes between markers.
-- Step 7 (bump date) — N/A; markers replace the dating signal.
-- Drift check — every line between markers maps to a source file; orphan rules (marker but no source) emit a warning.
+## Future (out of scope for v1)
 
-The long-form authoring rules (Why / Examples / Anti-patterns / When-to-remove) stay in source files exactly as they live in [[CLAUDE.md Rules]] today, just split one per file.
+- Content-hash cache so unchanged sources skip the Claude call (idempotency on demand).
+- `--check` mode for CI gating.
+- Author-assist subcommand (draft a TL;DR via Claude, write it back to source).
+- Pluggable LLM provider (currently `claude` only).

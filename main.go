@@ -2,24 +2,49 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Command distill compiles a folder of per-rule markdown files into one short
+// AI-targeted markdown file by sending each (target, section) group through
+// `claude --print` and writing the returned bullets between fenced markers.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/bborbe/distill/pkg/cli"
 )
 
 func main() {
-	var sourceDir string
-	flag.StringVar(&sourceDir, "source", "", "directory of source markdown rule files")
+	var (
+		sourceDir string
+		model     string
+		verbose   bool
+	)
+	flag.StringVar(&sourceDir, "source", "", "directory of source rule markdown files (required)")
+	flag.StringVar(&model, "model", "sonnet", "Claude model name passed to `claude --model`")
+	flag.BoolVar(&verbose, "verbose", false, "print per-group prompt + response to stderr")
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: distill --source <dir> [--model NAME] [--verbose]")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	if sourceDir == "" {
-		fmt.Fprintln(os.Stderr, "usage: distill --source <dir>")
+		flag.Usage()
 		os.Exit(2)
 	}
 
-	fmt.Fprintln(os.Stderr, "distill: not yet implemented — see docs/spec.md")
-	os.Exit(1)
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "distill: getwd: %v\n", err)
+		os.Exit(1)
+	}
+
+	driver := cli.NewDriver(os.Stderr, model, verbose)
+	if err := driver.Run(context.Background(), sourceDir, cwd); err != nil {
+		fmt.Fprintf(os.Stderr, "distill: %v\n", err)
+		os.Exit(cli.ExitCode(err))
+	}
 }
