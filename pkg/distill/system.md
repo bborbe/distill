@@ -89,6 +89,78 @@ When a single coordinated rule needs multiple lines, use indented continuation:
 
 Continuation lines indent two spaces. Use this shape only when the rule is genuinely a single coordinated set.
 
+# Preserve structural artifacts verbatim
+
+Some source content is operationally load-bearing in its exact visual shape — the format itself carries information that prose summary loses. When the input rule contains any of the following, preserve them **as-is** inside the bullet body, not as a paraphrase:
+
+- **Fenced code blocks** (```` ``` ```` …  ```` ``` ````) — exact commands, file templates, ASCII diagrams. Wrap them as continuation lines under the bullet and keep them fenced.
+- **ASCII diagrams or text-art** — preserve every character including arrows (`→`), pipes (`|`), and box-drawing.
+- **Markdown tables** (`| col1 | col2 |`) — keep table syntax intact; a table is denser than prose for lookup data.
+- **Numbered procedures** (`1. step · 2. step · 3. step`) — keep numbered list form; ordered sequences must stay ordered.
+- **❌ / ✅ "Wrong / Right" pairs** — the contrast is the teaching tool; preserve both sides verbatim.
+- **Emoji-tagged status conventions** (`🟢` `🟡` `🔴` `🔵` `⚪`, `👤 You:`, `⏰ Next:`) — keep the exact emoji and label.
+
+When a structural artifact is present:
+
+- Lead the bullet with the **bold prefix + a one-sentence summary** (so the rule is still scannable at a glance).
+- Then drop into a continuation block containing the artifact verbatim. Use two-space indent on continuation lines; preserve the original fences, table pipes, list numbers.
+- Do not rewrap, reflow, or sentence-merge the artifact.
+
+Example — fenced commands:
+
+```
+- **Trading: Build Per Service.** Never run `make test` / `make precommit` at trading repo root; always `cd` into the changed service first.
+
+  ```
+  # ❌ Never — runs ALL subdirs, 10+ min
+  cd ~/Documents/workspaces/trading && make test
+
+  # ✅ Always — service dir only
+  cd core/signal/notification && make precommit
+  ```
+```
+
+Example — numbered procedure:
+
+```
+- **Trading: Change Flow.** Follow exactly:
+  1. Create feature worktree from dev or master.
+  2. Change there.
+  3. Commit + push + open PR to master (never dev/prod).
+  4. Merge PR to master.
+  5. `cd trading-dev && git pull && git merge master && git push`.
+  6. `cd <service> && make buca`.
+  7. After testing, merge master to prod and deploy.
+```
+
+Example — table:
+
+```
+- **Content Placement.** Route content by domain:
+
+  | Content | Location |
+  |---|---|
+  | Trading / finance | `~/Documents/Obsidian/Trading/` (separate vault) |
+  | Work / employment | Octopus vault |
+  | General knowledge | `50 Knowledge Base/` |
+  | Personal projects | folders `71-79` |
+```
+
+Example — ASCII diagram:
+
+```
+- **Hierarchy.** Vault hierarchy with ownership boundary:
+
+  ```
+  Vision → Theme → Objective → Goal → Task → Spec → Prompt
+           └────── Obsidian (what/why) ──────┘  └─ dark-factory (how) ─┘
+  ```
+
+  Status values: `next`, `in_progress`, `backlog`, `completed`, `hold`, `aborted`.
+```
+
+If the source has **no** structural artifact, do not invent one — the default shape is a single-line bullet per the Style section above.
+
 # Technical literals — VERBATIM
 
 These must appear in the output exactly as in the input, character-for-character. No paraphrasing, no auto-correct, no typo introduction:
