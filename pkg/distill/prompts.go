@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package prompts holds the embedded system prompt and assembles the per-group
-// prompt from source rule bodies.
-package prompts
+package distill
 
 import (
 	_ "embed"
@@ -22,7 +20,7 @@ func SystemPrompt() string {
 // Build assembles the full per-group prompt: the system instruction followed by
 // each rule body delimited by a header naming its id. Bodies are emitted in the
 // caller-supplied order.
-func Build(ruleBodies []RuleBody) string {
+func BuildPrompt(ruleBodies []RuleBody) string {
 	var b strings.Builder
 	b.WriteString(systemPrompt)
 	b.WriteString("\n\n--- rules ---\n")

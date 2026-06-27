@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package target resolves a source's `target:` value to an absolute path.
-package target
+package distill
 
 import (
 	"context"
@@ -22,7 +21,7 @@ const VaultEnvVar = "DISTILL_VAULT_CLAUDE_MD"
 // rule, after `~` expansion.
 const GlobalPath = "~/.claude/CLAUDE.md"
 
-//counterfeiter:generate -o ../../mocks/target-resolver.go --fake-name Resolver . Resolver
+//counterfeiter:generate -o ../../mocks/distill-resolver.go --fake-name DistillResolver . Resolver
 
 // Resolver maps a target alias or path to an absolute filesystem path.
 type Resolver interface {
@@ -42,15 +41,15 @@ type resolver struct{}
 func (r *resolver) Resolve(ctx context.Context, target string, cwd string) (string, error) {
 	switch {
 	case target == "global":
-		return expandTilde(GlobalPath)
+		return expandTilde(ctx, GlobalPath)
 	case target == "vault":
 		vault, ok := os.LookupEnv(VaultEnvVar)
 		if !ok || vault == "" {
 			return "", errors.Errorf(ctx, "target: vault requires $%s to be set", VaultEnvVar)
 		}
-		return expandTilde(vault)
+		return expandTilde(ctx, vault)
 	case strings.HasPrefix(target, "~"):
-		return expandTilde(target)
+		return expandTilde(ctx, target)
 	case filepath.IsAbs(target):
 		return filepath.Clean(target), nil
 	default:
@@ -58,13 +57,13 @@ func (r *resolver) Resolve(ctx context.Context, target string, cwd string) (stri
 	}
 }
 
-func expandTilde(p string) (string, error) {
+func expandTilde(ctx context.Context, p string) (string, error) {
 	if !strings.HasPrefix(p, "~") {
 		return filepath.Clean(p), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(ctx, err, "get user home dir")
 	}
 	if p == "~" {
 		return home, nil

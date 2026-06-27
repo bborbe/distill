@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package marker scans target markdown files into a sequence of regions,
-// distinguishing operator prose from `distill` marker blocks.
-package marker
+package distill
 
 import (
 	"context"
@@ -34,7 +32,7 @@ var (
 	endRE   = regexp.MustCompile(`^<!--\s*end:distill\s+section="([^"]*)"\s*-->\s*$`)
 )
 
-//counterfeiter:generate -o ../../mocks/marker-scanner.go --fake-name Scanner . Scanner
+//counterfeiter:generate -o ../../mocks/distill-scanner.go --fake-name DistillScanner . Scanner
 
 // Scanner parses target file contents into a sequence of Regions.
 type Scanner interface {

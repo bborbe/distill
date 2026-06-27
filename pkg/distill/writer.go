@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package writer atomically replaces the contents of a target file via
-// temp-file + rename.
-package writer
+package distill
 
 import (
 	"context"
@@ -14,7 +12,7 @@ import (
 	"github.com/bborbe/errors"
 )
 
-//counterfeiter:generate -o ../../mocks/writer.go --fake-name Writer . Writer
+//counterfeiter:generate -o ../../mocks/distill-writer.go --fake-name DistillWriter . Writer
 
 // Writer writes content to path atomically.
 type Writer interface {

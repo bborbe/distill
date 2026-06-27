@@ -2,10 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package claude wraps `claude --print` so that callers can swap in a stub for
-// tests. The subprocess flags follow the reference implementation in
-// bborbe/agent/claude.ClaudeRunner.
-package claude
+package distill
 
 import (
 	"bufio"
@@ -19,7 +16,7 @@ import (
 	"github.com/bborbe/errors"
 )
 
-//counterfeiter:generate -o ../../mocks/claude-runner.go --fake-name Runner . Runner
+//counterfeiter:generate -o ../../mocks/distill-runner.go --fake-name DistillRunner . Runner
 
 // Runner invokes `claude --print` with prompt on stdin and returns the final
 // `result` event's text.

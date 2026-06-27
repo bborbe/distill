@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package source reads a folder of rule markdown files and returns the parsed
-// rules in canonical sort order.
-package source
+package distill
 
 import (
 	"context"
@@ -40,7 +38,7 @@ type distillFrontmatter struct {
 	} `yaml:"distill"`
 }
 
-//counterfeiter:generate -o ../../mocks/source-parser.go --fake-name Parser . Parser
+//counterfeiter:generate -o ../../mocks/distill-parser.go --fake-name DistillParser . Parser
 
 // Parser walks a source directory and returns its rules.
 type Parser interface {
