@@ -89,10 +89,10 @@ func scanResult(reader io.Reader) string {
 	return result
 }
 
-func tailLine(s string, max int) string {
+func tailLine(s string, maxBytes int) string {
 	s = strings.TrimSpace(s)
-	if len(s) > max {
-		s = s[len(s)-max:]
+	if len(s) > maxBytes {
+		s = s[len(s)-maxBytes:]
 	}
 	return s
 }
