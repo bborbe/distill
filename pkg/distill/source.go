@@ -18,13 +18,24 @@ import (
 // Rule is one parsed source file: the frontmatter `distill:` block plus the
 // markdown body with frontmatter stripped.
 type Rule struct {
-	Path     string
-	ID       string
-	Target   string
-	Section  string
-	Order    int
+	// Path is the absolute path of the source file the rule was parsed from.
+	Path string
+	// ID is the stable identifier from `distill.id` or, when absent, the
+	// filename stem (`foo.md` → `foo`).
+	ID string
+	// Target is the unresolved `distill.target` value (alias or path string).
+	Target string
+	// Section is the marker section name in the resolved target file.
+	Section string
+	// Order is the sort key within a section; lower comes first. Defaults to
+	// 100 when omitted in frontmatter.
+	Order int
+	// Disabled, when true, drops the rule from prompt building and emitted
+	// output. The rule is still parsed so its presence is visible.
 	Disabled bool
-	Body     string
+	// Body is the markdown body with YAML frontmatter stripped; sent verbatim
+	// to Claude as part of the compression prompt.
+	Body string
 }
 
 // distillFrontmatter is the YAML shape `distill:` blocks unmarshal into.
