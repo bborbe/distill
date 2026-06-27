@@ -15,17 +15,16 @@ import (
 	"github.com/bborbe/distill/pkg/distill"
 )
 
-// CreateDriver returns a *distill.Driver wired with the real Parser, Resolver,
-// Scanner, Runner, and Writer implementations.
-func CreateDriver(stderr io.Writer, model string, verbose bool) *distill.Driver {
+// CreateDriver returns a *distill.Driver wired with the real Parser, Runner,
+// and Writer implementations.
+func CreateDriver(stderr io.Writer, model, title string, verbose bool) *distill.Driver {
 	return &distill.Driver{
-		Parser:   distill.NewParser(),
-		Resolver: distill.NewResolver(),
-		Scanner:  distill.NewScanner(),
-		Runner:   distill.NewRunner(),
-		Writer:   distill.NewWriter(),
-		Stderr:   stderr,
-		Verbose:  verbose,
-		Model:    model,
+		Parser:  distill.NewParser(),
+		Runner:  distill.NewRunner(),
+		Writer:  distill.NewWriter(),
+		Stderr:  stderr,
+		Verbose: verbose,
+		Model:   model,
+		Title:   title,
 	}
 }

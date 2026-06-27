@@ -16,15 +16,14 @@ import (
 var _ = Describe("CreateDriver", func() {
 	It("wires all collaborators with the supplied options", func() {
 		var stderr bytes.Buffer
-		d := factory.CreateDriver(&stderr, "claude-haiku-4-5", true)
+		d := factory.CreateDriver(&stderr, "claude-haiku-4-5", "My Title", true)
 		Expect(d).NotTo(BeNil())
 		Expect(d.Parser).NotTo(BeNil())
-		Expect(d.Resolver).NotTo(BeNil())
-		Expect(d.Scanner).NotTo(BeNil())
 		Expect(d.Runner).NotTo(BeNil())
 		Expect(d.Writer).NotTo(BeNil())
 		Expect(d.Stderr).To(Equal(&stderr))
 		Expect(d.Model).To(Equal("claude-haiku-4-5"))
+		Expect(d.Title).To(Equal("My Title"))
 		Expect(d.Verbose).To(BeTrue())
 	})
 })

@@ -46,9 +46,11 @@ func Execute() {
 // success or an error suitable for distill.ExitCode mapping.
 func Run(ctx context.Context, args []string) error {
 	var (
-		sourceDir string
-		model     string
-		verbose   bool
+		sourceDir  string
+		outputPath string
+		title      string
+		model      string
+		verbose    bool
 	)
 
 	rootCmd := &cobra.Command{
@@ -56,19 +58,18 @@ func Run(ctx context.Context, args []string) error {
 		Short:        "Compile a folder of per-rule markdown files into one short AI-targeted markdown file.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("getwd: %w", err)
-			}
-			driver := factory.CreateDriver(cmd.ErrOrStderr(), model, verbose)
-			return driver.Run(cmd.Context(), sourceDir, cwd)
+			driver := factory.CreateDriver(cmd.ErrOrStderr(), model, title, verbose)
+			return driver.Run(cmd.Context(), sourceDir, outputPath)
 		},
 	}
 
 	rootCmd.Flags().StringVar(&sourceDir, "source", "", "directory of source rule markdown files (required)")
+	rootCmd.Flags().StringVar(&outputPath, "output", "", "output markdown file path; will be overwritten (required)")
+	rootCmd.Flags().StringVar(&title, "title", "", "optional `# <text>` heading written under the auto-generated warning")
 	rootCmd.Flags().StringVar(&model, "model", "sonnet", "Claude model name passed to `claude --model`")
-	rootCmd.Flags().BoolVar(&verbose, "verbose", false, "print per-group prompt + response to stderr")
+	rootCmd.Flags().BoolVar(&verbose, "verbose", false, "print per-section prompt + response to stderr")
 	_ = rootCmd.MarkFlagRequired("source")
+	_ = rootCmd.MarkFlagRequired("output")
 
 	rootCmd.SetArgs(args)
 	return rootCmd.ExecuteContext(ctx)

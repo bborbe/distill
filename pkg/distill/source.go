@@ -23,9 +23,8 @@ type Rule struct {
 	// ID is the stable identifier from `distill.id` or, when absent, the
 	// filename stem (`foo.md` → `foo`).
 	ID string
-	// Target is the unresolved `distill.target` value (alias or path string).
-	Target string
-	// Section is the marker section name in the resolved target file.
+	// Section is the `## <section>` heading the bullet lives under in the
+	// output file. Required; empty value is an error.
 	Section string
 	// Order is the sort key within a section; lower comes first. Defaults to
 	// 100 when omitted in frontmatter.
@@ -41,7 +40,6 @@ type Rule struct {
 // distillFrontmatter is the YAML shape `distill:` blocks unmarshal into.
 type distillFrontmatter struct {
 	Distill *struct {
-		Target   string `yaml:"target"`
 		Section  string `yaml:"section"`
 		Order    *int   `yaml:"order"`
 		ID       string `yaml:"id"`
@@ -64,9 +62,9 @@ func NewParser() Parser {
 
 type parser struct{}
 
-// Parse walks the source directory once, returns rules sorted by (target,
-// section, order, id) ascending. Files without a `distill:` block are skipped
-// silently; files that fail to parse YAML are returned as an error.
+// Parse walks the source directory once, returns rules sorted by (section,
+// order, id) ascending. Files without a `distill:` block are skipped silently;
+// files that fail to parse YAML or lack a required `section:` are errors.
 func (p *parser) Parse(ctx context.Context, sourceDir string) ([]Rule, error) {
 	entries, err := os.ReadDir(sourceDir)
 	if err != nil {
@@ -93,9 +91,6 @@ func (p *parser) Parse(ctx context.Context, sourceDir string) ([]Rule, error) {
 	}
 	sort.Slice(rules, func(i, j int) bool {
 		a, b := rules[i], rules[j]
-		if a.Target != b.Target {
-			return a.Target < b.Target
-		}
 		if a.Section != b.Section {
 			return a.Section < b.Section
 		}
@@ -123,9 +118,6 @@ func (p *parser) parseFile(ctx context.Context, path string) (Rule, bool, error)
 	if fm.Distill == nil {
 		return Rule{}, false, nil
 	}
-	if fm.Distill.Target == "" {
-		return Rule{}, false, errors.Errorf(ctx, "%s: distill.target is required", path)
-	}
 	if fm.Distill.Section == "" {
 		return Rule{}, false, errors.Errorf(ctx, "%s: distill.section is required", path)
 	}
@@ -140,7 +132,6 @@ func (p *parser) parseFile(ctx context.Context, path string) (Rule, bool, error)
 	return Rule{
 		Path:     path,
 		ID:       id,
-		Target:   fm.Distill.Target,
 		Section:  fm.Distill.Section,
 		Order:    order,
 		Disabled: fm.Distill.Disabled,
