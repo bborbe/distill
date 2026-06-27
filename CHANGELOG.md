@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.2.3
 
 - fix: rename `max` parameter in `tailLine` to `maxBytes` so it no longer shadows Go's built-in (clears `revive` lint on CI).
 - docs: rewrite README to reflect shipped state — install instructions, source rule format, output shape, Makefile integration example, non-goals.
