@@ -7,6 +7,7 @@ package distill_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -479,6 +480,145 @@ var _ = Describe("Driver", func() {
 		Expect(driver.Run(ctx, sourceDir, outputPath)).To(HaveOccurred())
 		Expect(cache.SaveMergedCallCount()).To(Equal(1))
 		Expect(cache.SaveCallCount()).To(Equal(0))
+	})
+
+	Describe("cache integration", func() {
+		It("warm noop: second run skips runner when sources are unchanged", func() {
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+
+			// First run — cache cold, runner called once.
+			stub1 := stubRunnerWith(nil)
+			driver1 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub1,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver1.Run(ctx, sourceDir, outputPath)).To(Succeed())
+			Expect(stub1.RunCallCount()).To(Equal(1))
+			firstOut := readOutput()
+
+			// Second run — cache warm, runner must not be called.
+			stub2 := stubRunnerWith(nil)
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver2.Run(ctx, sourceDir, outputPath)).To(Succeed())
+			Expect(stub2.RunCallCount()).To(Equal(0))
+			Expect(readOutput()).To(Equal(firstOut))
+		})
+
+		It("single-edit: only the edited rule is re-requested on second run", func() {
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+			writeSource("b.md", "---\ndistill:\n  section: Git\n  id: b\n---\nbody b\n")
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+
+			// First run — both rules are cache misses.
+			stub1 := stubRunnerWith(nil)
+			driver1 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub1,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver1.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			// Edit only rule b.
+			writeSource("b.md", "---\ndistill:\n  section: Git\n  id: b\n---\nbody b EDITED\n")
+
+			// Second run — only b is a miss; prompt must contain b but not a.
+			stub2 := stubRunnerWith(nil)
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver2.Run(ctx, sourceDir, outputPath)).To(Succeed())
+			Expect(stub2.RunCallCount()).To(BeNumerically(">=", 1))
+			allPrompts := strings.Join(promptsSeen(stub2), "\n")
+			Expect(allPrompts).To(ContainSubstring(`id="b"`))
+			Expect(allPrompts).NotTo(ContainSubstring(`id="a"`))
+		})
+
+		It("prune: disabled rule's id is absent from cache after next run", func() {
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+			writeSource("b.md", "---\ndistill:\n  section: Git\n  id: b\n---\nbody b\n")
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+
+			// First run — a and b compiled and cached.
+			stub1 := stubRunnerWith(nil)
+			driver1 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub1,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver1.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			// Disable b.
+			writeSource(
+				"b.md",
+				"---\ndistill:\n  section: Git\n  id: b\n  disabled: true\n---\nbody b\n",
+			)
+
+			// Second run — b is disabled; cache must prune it.
+			stub2 := stubRunnerWith(nil)
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver2.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			// Parse on-disk cache and assert b's id is absent.
+			raw, err := os.ReadFile(cachePath)
+			Expect(err).NotTo(HaveOccurred())
+			var cf struct {
+				Entries map[string]json.RawMessage `json:"entries"`
+			}
+			Expect(json.Unmarshal(raw, &cf)).To(Succeed())
+			Expect(cf.Entries).To(HaveKey("a"))
+			Expect(cf.Entries).NotTo(HaveKey("b"))
+		})
+
+		It("corrupt cache: warns, runs cold (all rules re-requested), returns nil", func() {
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			Expect(os.WriteFile(cachePath, []byte("{not json"), 0o600)).To(Succeed())
+
+			stub := stubRunnerWith(nil)
+			var stderrBuf bytes.Buffer
+			driver := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+			Expect(stderrBuf.String()).To(ContainSubstring("corrupt"))
+			// All rules were cold — runner called at least once.
+			Expect(stub.RunCallCount()).To(BeNumerically(">=", 1))
+		})
 	})
 
 	Describe("ExitCode", func() {

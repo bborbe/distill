@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- feat: add `NewFileCache` — JSON file-backed cache with atomic temp+rename writes, prune-to-keepIDs on success, and warn-and-cold on missing/corrupt/schema-version-mismatch; hash folds in `cachePromptVersion`, `SystemPrompt()`, model, and body so any compression-context change invalidates all entries
+- feat: add `NewNoopCache` — no-op cache used when `--no-cache` is passed; `RuleHash` still works for logging
+- feat: add `RuleHash` package function — SHA-256 over length-prefixed `cachePromptVersion + SystemPrompt() + model + body`
+- feat: add `--no-cache` CLI flag — bypasses cache load and save only; validation, batching, and anti-injection always run
+- refactor: `CreateDriver` accepts a `Cache` argument (selection between `NewFileCache` and `NewNoopCache` happens in `pkg/cli`); `BatchSize` defaulted to 15 in factory
+
 - feat: add `BuildBatchPrompt` — fences each rule body as inert data inside `<rule id="…">` tags with a literal `</rule>` guard; compression instructions travel out-of-band, never in the user prompt
 - feat: add `ParseBatchResponse` — fence-aware `--- bullet id=<id> ---` delimiter parser; stray preamble tolerated as warning; zero-delimiter response returns empty map (fail-loud path for caller)
 - feat: add `ValidateBullet` — per-id shape validation: non-empty, bold prefix, exactly one column-0 list item, balanced code fences

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -51,6 +52,7 @@ func Run(ctx context.Context, args []string) error {
 		title      string
 		model      string
 		verbose    bool
+		noCache    bool
 	)
 
 	rootCmd := &cobra.Command{
@@ -58,7 +60,17 @@ func Run(ctx context.Context, args []string) error {
 		Short:        "Compile a folder of per-rule markdown files into one short AI-targeted markdown file.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			driver := factory.CreateDriver(cmd.ErrOrStderr(), model, title, verbose)
+			var cache distill.Cache
+			if noCache {
+				cache = distill.NewNoopCache()
+			} else {
+				cache = distill.NewFileCache(
+					filepath.Join(sourceDir, ".distill-cache.json"),
+					cmd.ErrOrStderr(),
+				)
+			}
+			driver := factory.CreateDriver(cmd.ErrOrStderr(), cache, model, title, verbose)
+			driver.NoCache = noCache
 			return driver.Run(cmd.Context(), sourceDir, outputPath)
 		},
 	}
@@ -73,6 +85,8 @@ func Run(ctx context.Context, args []string) error {
 		StringVar(&model, "model", "sonnet", "Claude model name passed to `claude --model`")
 	rootCmd.Flags().
 		BoolVar(&verbose, "verbose", false, "print per-section prompt + response to stderr")
+	rootCmd.Flags().
+		BoolVar(&noCache, "no-cache", false, "bypass the content-hash cache (validation and anti-injection still run)")
 	_ = rootCmd.MarkFlagRequired("source")
 	_ = rootCmd.MarkFlagRequired("output")
 

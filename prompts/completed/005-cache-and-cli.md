@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [001-harden-compile-pipeline]
+summary: Added NewFileCache/NewNoopCache/RuleHash with atomic JSON persistence, --no-cache CLI flag, and cache+BatchSize wired through factory; all ACs pass with 82.1% pkg/distill coverage
+execution_id: distill-harden-exec-005-cache-and-cli
+dark-factory-version: v0.191.4
 created: "2026-07-12T09:10:00Z"
 queued: "2026-07-12T15:24:13Z"
+started: "2026-07-12T15:52:45Z"
+completed: "2026-07-12T16:02:23Z"
 branch: dark-factory/harden-compile-pipeline
 ---
 
