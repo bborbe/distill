@@ -11,6 +11,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -22,6 +23,15 @@ import (
 	"github.com/bborbe/distill/pkg/distill"
 	"github.com/bborbe/distill/pkg/factory"
 )
+
+// UsageError marks a flag-parsing or required-flag failure that must exit 2,
+// distinct from a runtime failure (exit 1).
+type UsageError struct{ Err error }
+
+func (e *UsageError) Error() string { return e.Err.Error() }
+
+// Unwrap lets errors.As/errors.Is traverse through UsageError.
+func (e *UsageError) Unwrap() error { return e.Err }
 
 // Execute is the main entry point for the distill binary. It wires
 // signal-driven context cancellation around Run and translates any returned
@@ -39,12 +49,17 @@ func Execute() {
 
 	if err := Run(ctx, os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "distill: %v\n", err)
+		var ue *UsageError
+		if errors.As(err, &ue) {
+			os.Exit(2)
+		}
 		os.Exit(distill.ExitCode(err))
 	}
 }
 
 // Run parses args, wires the driver, and invokes the pipeline. Returns nil on
-// success or an error suitable for distill.ExitCode mapping.
+// success, a *UsageError when required flags are missing (exit 2), or a
+// runtime error suitable for distill.ExitCode mapping (exit 1).
 func Run(ctx context.Context, args []string) error {
 	var (
 		sourceDir  string
@@ -53,6 +68,7 @@ func Run(ctx context.Context, args []string) error {
 		model      string
 		verbose    bool
 		noCache    bool
+		ranRunE    bool
 	)
 
 	rootCmd := &cobra.Command{
@@ -60,6 +76,7 @@ func Run(ctx context.Context, args []string) error {
 		Short:        "Compile a folder of per-rule markdown files into one short AI-targeted markdown file.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			ranRunE = true
 			var cache distill.Cache
 			if noCache {
 				cache = distill.NewNoopCache()
@@ -91,5 +108,11 @@ func Run(ctx context.Context, args []string) error {
 	_ = rootCmd.MarkFlagRequired("output")
 
 	rootCmd.SetArgs(args)
-	return rootCmd.ExecuteContext(ctx)
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		if !ranRunE {
+			return &UsageError{Err: err}
+		}
+		return err
+	}
+	return nil
 }

@@ -26,9 +26,10 @@ distill --source <rule-folder> --output <claude-md-file> --title "Global Prefere
 | `--output <file>` | yes | Output markdown file path (overwritten every run) |
 | `--title <text>` | no | Top-level `# <text>` heading written under the auto-generated warning |
 | `--model <name>` | no | Claude model name (default: `sonnet`) |
-| `--verbose` | no | Print per-section prompt + response to stderr |
+| `--verbose` | no | Print per-batch prompts + Claude responses to stderr |
+| `--no-cache` | no | Bypass the content-hash cache (validation and anti-injection always run) |
 
-Exit codes: `0` ok · `1` failure (parse / Claude / IO) · `2` usage error.
+Exit codes: `0` ok · `1` failure (parse / Claude / IO / validation) · `2` usage error (missing required flag).
 
 ## Source rule format
 
@@ -85,6 +86,16 @@ Sections are ordered by minimum `order` within the section, then alphabetically.
 
 The output file is owned end-to-end by `distill`. Don't hand-edit it — your edits will be lost on the next regeneration. Edit the source rule files instead, then re-run.
 
+## Cache
+
+`distill` keeps a content-hash cache at `<source-dir>/.distill-cache.json`. On a re-run with unchanged sources it serves every rule from cache, spawns zero `claude` processes, and writes byte-identical output.
+
+Whether to commit `.distill-cache.json` into your rule repo or gitignore it is an operator decision — distill's behavior is identical either way (a missing cache triggers a cold run with a stderr warning).
+
+Changing `system.md` (the compression instructions) or switching `--model` invalidates the whole cache and forces a cold recompile on the next run, because the cache hash folds in the system prompt content and model name.
+
+Use `--no-cache` to bypass cache load and save for a single run (useful when you want to force a fresh compression of all rules). Validation and the anti-injection `claude` flags always run regardless of `--no-cache`.
+
 ## Make integration
 
 A typical setup with two `make generate` targets — one for global `~/.claude/CLAUDE.md`, one for vault `~/Documents/Obsidian/Personal/CLAUDE.md`:
@@ -105,12 +116,10 @@ generate:
 cd ~/.claude && make generate
 ```
 
-## Non-goals (v1)
+## Non-goals
 
-- No caching. Every run calls Claude. Re-running may produce slightly different phrasing per bullet (LLM is non-deterministic).
-- No `--check` mode. (Cannot exist without cache.)
+- No `--check` mode.
 - No watch / daemon mode. One-shot CLI.
-- No marker-based partial-file addressing — `distill` owns the whole output file.
 - No multi-target broadcasting from a single source file.
 
 ## Development

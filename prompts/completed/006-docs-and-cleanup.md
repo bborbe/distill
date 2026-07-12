@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [001-harden-compile-pipeline]
+summary: 'Rewrote docs/spec.md to v3, scrubbed stale marker references, added UsageError+ranRunE exit-2 fix, added --no-cache to README, extended CHANGELOG ## Unreleased, and added pkg/cli test suite covering UsageError.'
+execution_id: distill-harden-exec-006-docs-and-cleanup
+dark-factory-version: v0.191.4
 created: "2026-07-12T09:10:00Z"
 queued: "2026-07-12T15:24:13Z"
+started: "2026-07-12T16:02:25Z"
+completed: "2026-07-12T16:09:05Z"
 branch: dark-factory/harden-compile-pipeline
 ---
 

@@ -1,25 +1,26 @@
-# distill — Specification (v2)
+# distill — Specification (v3)
 
-`distill` reads a folder of detailed per-rule markdown files, sends them to Claude Code (`claude --print`) with a compression prompt, and writes a single regenerated markdown output file.
+`distill` reads a folder of detailed per-rule markdown files, sends cache-miss rules to Claude Code (`claude --print`) with compression instructions out-of-band, validates each returned bullet per-id, and writes a single fully-regenerated markdown output file.
 
 ## Goal
 
-Replace the manual "long-form rule → derive a one-liner → paste into CLAUDE.md → bump date" workflow with a single CLI call. The author writes long-form rules in a folder; `distill` calls Claude per `(section)` group; the entire output file is regenerated every run.
+Replace the manual "long-form rule → derive a one-liner → paste into CLAUDE.md → bump date" workflow with a single CLI call. The author writes long-form rules in a folder; `distill` compresses cache-miss rules via batched id-keyed LLM calls; the entire output file is regenerated every run. Re-running on unchanged sources spawns zero `claude` processes and writes byte-identical output.
 
-## Non-goals (v1)
+## Non-goals
 
-- No caching. Every run calls Claude.
-- No idempotency contract. Re-running on unchanged sources may produce different output (LLM is non-deterministic). Accepted.
 - No `--check` mode.
 - No watch / daemon mode. One-shot CLI.
-- No marker addressing inside an existing file. **The output file is owned end-to-end by `distill`** — it is regenerated from scratch every run; any pre-existing content is replaced.
+- No marker-based partial-file addressing. **The output file is owned end-to-end by `distill`** — it is regenerated from scratch every run; any pre-existing content is replaced.
 - No multi-target broadcasting from a single source file. One source folder = one output file.
 - No content validation of source files beyond frontmatter parsing.
+- No `BatchSize` CLI flag (it is a Driver field set in the factory).
+- No custom cache path flag. Cache is always at `<source-dir>/.distill-cache.json`.
+- No flag to disable validation or the anti-injection `claude` flags — these always run; `--no-cache` bypasses only the cache.
 
 ## CLI
 
 ```
-distill --source <dir> --output <file> [--title <text>]
+distill --source <dir> --output <file> [--title <text>] [--model <name>] [--verbose] [--no-cache]
 ```
 
 | Flag | Required | Meaning |
@@ -28,15 +29,16 @@ distill --source <dir> --output <file> [--title <text>]
 | `--output <file>` | yes | Output file path; will be **created or overwritten** |
 | `--title <text>` | no | Top-level `# <text>` heading written under the auto-generated warning |
 | `--model <name>` | no | Claude model name (default: `sonnet`) |
-| `--verbose` | no | Print per-section prompts + Claude responses to stderr |
+| `--verbose` | no | Print per-batch prompts + Claude responses to stderr |
+| `--no-cache` | no | Bypass cache load and save (validation and anti-injection always run) |
 
 Exit codes:
 
 | Code | Meaning |
 |---|---|
 | `0` | Output written successfully |
-| `1` | Generic failure (parse error, IO error, Claude error) |
-| `2` | Usage / argument error |
+| `1` | Generic failure (parse error, IO error, Claude error, validation failure after retry) |
+| `2` | Usage / argument error (e.g. `--source` or `--output` omitted) |
 
 ## Source File Format
 
@@ -108,53 +110,132 @@ Rules:
 - Within a section, bullets are sorted by `(order, id)` ascending.
 - Empty sections (e.g. all rules in a section have `disabled: true`) are still emitted with their `## <section>` heading and an empty body.
 
+## Cache
+
+`distill` maintains a content-hash cache at `<source-dir>/.distill-cache.json`. Committing this file vs gitignoring it is an operator decision; distill's behavior is identical either way (missing cache → cold run).
+
+**Schema:** JSON object with a `version` integer and a `rules` map from id to `{hash, bullet}`.
+
+**Cache hash:** SHA-256 over length-prefixed concatenation of `cachePromptVersion` constant + `SystemPrompt()` content + model string + rule body. Any change to the compression context (including editing `system.md` or switching `--model`) invalidates all entries.
+
+**Cache lifecycle:**
+
+| Scenario | Behaviour |
+|---|---|
+| Cache-hit rule | `hash` matches stored entry → serve bullet from cache; skip LLM call. |
+| Cache-miss rule | No entry or hash mismatch → include in next LLM batch. |
+| Fully successful run | Cache rewritten to contain entries for exactly the current enabled rule ids (removed/renamed/disabled rules are pruned). |
+| Validation failure (exit non-zero) | Bullets that DID validate are merged into the cache without pruning; re-run re-requests only the still-failing ids. |
+| Cache missing / corrupt / version-mismatch | Warn to stderr, run cold (all rules treated as misses), exit 0 on success; cache is overwritten on successful completion. |
+| `--no-cache` | Cache load and save are bypassed entirely; batching, validation, and anti-injection always run. |
+
 ## Compression Prompt
 
-Per `section` group, `distill` builds a prompt by concatenating:
+Cache-miss rules are compressed in batches of at most `BatchSize` rules per `claude` invocation (default 15, a Driver field set in the factory — not a CLI flag).
 
-1. An embedded system instruction (from `pkg/distill/system.md`): "Compress each input rule into one short imperative sentence with a `**bold prefix.**` Preserve technical literals verbatim. No rationale. Bullet list only, in order given."
-2. The source bodies (in order: `order` ascending, then `id` ascending), each prefixed with a delimiter like `--- rule id=<id> ---`.
+**User prompt structure:** an inert-data preamble followed by all batch rules wrapped as:
 
-The prompt is sent to Claude via `claude --print --output-format stream-json --verbose`, prompt on stdin. The `result` event's `result` field is the compressed block — emitted verbatim under the section heading.
+```xml
+<rules>
+<rule id="no-git-c-flag">
+…verbatim rule body…
+</rule>
+</rules>
+```
+
+If any rule body contains the literal string `</rule>`, distill fails at prompt-build time with exit 1 naming the source file, before any LLM call.
+
+**System instructions** travel out-of-band via `--system-prompt` (a temp file containing `pkg/distill/system.md`). They are never embedded in the user prompt. The model is instructed to return one block per rule delimited by:
+
+```
+--- bullet id=<id> ---
+- **Bold Prefix.** Compressed body
+```
+
+Blocks must appear in the order the rules were given. A `--- bullet id= ---` line that appears inside a fenced code block within a bullet body is parsed as content, not a delimiter. Stray model preamble before the first real delimiter is tolerated as a stderr warning.
 
 ## Claude Invocation
 
-Same subprocess pattern as `bborbe/agent/claude.ClaudeRunner`:
+The verified anti-injection flag set, evaluated on the target machine 2026-07-12:
 
-- `exec.CommandContext(ctx, "claude", "--print", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--model", <model>)`
+```
+claude \
+  --print \
+  --output-format stream-json \
+  --verbose \
+  --strict-mcp-config \
+  --system-prompt <temp-file-with-system.md> \
+  --setting-sources "" \
+  --tools "" \
+  --disable-slash-commands \
+  --no-session-persistence \
+  [--model <name>]
+```
+
 - Prompt on stdin
-- Parse stream-JSON output for the final `result` event
-- Trim trailing whitespace; otherwise verbatim
+- Working directory = `os.TempDir()` (neutral, prevents re-reading the file being regenerated)
+- Parse stream-JSON output for the final `result` event; trim trailing whitespace
+
+**Why this flag set:** `--system-prompt` moves compression instructions out of the user prompt; `--setting-sources ""` suppresses ambient `CLAUDE.md` and settings discovery (the primary fix — without it the child process reads and obeys the file distill is regenerating); `--tools ""` and `--disable-slash-commands` prevent unintended tool use; `--no-session-persistence` prevents session carry-over; neutral cwd is belt-and-suspenders against the child re-reading the output file.
 
 If the `claude` binary is missing on `$PATH`, exit 1.
+
+## Validation & Retry
+
+Each bullet returned by the model is validated per-id before it is accepted:
+
+| Check | Rule |
+|---|---|
+| Non-empty | Bullet text must not be empty or whitespace-only |
+| Bold prefix | Must start with `- **` and contain a closing `**` |
+| Single top-level item | Exactly one column-0 `- ` list line; continuation lines allowed |
+| Balanced fences | Code fences within the bullet body must be balanced (even count) |
+
+**Zero-delimiter response:** a model response containing no `--- bullet id= ---` delimiters at all (the classic hijack / refusal shape) fails the entire chunk immediately, with no bullets extracted.
+
+**Retry:** missing or invalid ids from a chunk are retried exactly once in a call scoped to only those ids. If any id is still unresolved after the retry, the run exits non-zero naming the unresolved ids; the output file is never touched (the atomic writer runs only after every enabled rule id has a validated bullet).
+
+**Unknown ids:** bullets addressed to ids not in the request are warned to stderr and ignored.
+
+**Run summary:** each run prints to stderr:
+```
+distill: N cached, M compiled (K chunks), R retried
+```
 
 ## Error Cases
 
 | Case | Behaviour |
 |---|---|
-| Source file missing required `distill:` frontmatter | Skipped silently. |
+| Source file missing `distill:` frontmatter | Skipped silently. |
 | Source file has `distill:` but missing `section:` | Exit 1; stderr names the source file. |
 | Two source files share identical `(section, order, id)` | Exit 1; stderr names both source files. |
+| Rule body contains literal `</rule>` | Exit 1; stderr names the source file; no LLM call made. |
 | `claude` CLI exits non-zero | Exit 1; stderr names the section + tail of Claude's stderr. |
 | `claude` CLI not on `$PATH` | Exit 1; stderr names the binary. |
 | Source folder missing / unreadable | Exit 1; stderr names the path. |
 | Output dir does not exist | Exit 1; stderr names the dir. |
 | `--source` / `--output` flag missing | Exit 2; stderr prints usage. |
 | Source file has `disabled: true` | Parsed; not sent to Claude; not emitted. |
+| Cache missing / corrupt / version-mismatch | Warn to stderr; cold run; exit 0 on success. |
+| Model returns zero delimiters (hijack / refusal) | Chunk marked failed → scoped retry once → still failing → exit non-zero naming ids; output file untouched. |
+| Model returns invalid bullet for some ids | Those ids retried once scoped; still-invalid → exit non-zero naming them; output untouched. |
+| Model returns bullets for unknown ids | Warn to stderr; ignore extras; continue. |
 
 ## Architecture
 
 - `main.go` — calls `cli.Execute()`
-- `pkg/cli/` — cobra command tree; flag parsing
+- `pkg/cli/` — cobra command tree; flag parsing; `UsageError` type for exit-2 distinction
 - `pkg/distill/` — Driver + collaborators
   - `source.go` — parse folder; extract frontmatter + body
-  - `prompts.go` — embed `system.md`; build per-section prompt
-  - `claude.go` — wrap `exec.CommandContext("claude", ...)`; stream-JSON parsing
+  - `batch.go` — `BuildBatchPrompt` (inert-data wrapping); `ParseBatchResponse` (fence-aware); `ValidateBullet`
+  - `cache.go` — `Cache` interface; `NewFileCache`; `NewNoopCache`; `RuleHash`
+  - `system.md` — compression instructions (passed out-of-band, never in user prompt)
+  - `claude.go` — wrap `exec.CommandContext("claude", ...)`; anti-injection flag set; stream-JSON parsing
   - `writer.go` — atomic temp+rename write
-  - `driver.go` — orchestrate
+  - `driver.go` — orchestrate; `compileBullets`; `assembleOutput`; `ExitCode`
 - `pkg/factory/` — wire collaborators
 
-Tests mock `claude.Runner` so unit / E2E tests are deterministic and offline.
+Tests mock `Runner` and `Cache` so unit / E2E tests are deterministic and offline.
 
 ## Worked Example
 
@@ -211,12 +292,12 @@ distill \
 - **Terse everywhere.** Be extremely concise in commits, plans, and responses.
 ```
 
-Re-running may produce slightly different phrasing per bullet (LLM non-determinism); the structure and ordering are deterministic.
+Re-running on unchanged sources produces byte-identical output (all rules served from cache, zero `claude` processes spawned).
 
-## Future (out of scope for v1)
+## Future (out of scope for v3)
 
-- Content-hash cache so unchanged sources skip the Claude call.
-- `--check` mode for CI gating.
+- `--check` mode for CI gating (requires stable cache).
 - Author-assist subcommand (draft a TL;DR via Claude, write it back to source).
 - Pluggable LLM provider.
 - Subfolder recursion in `--source`.
+- Custom cache path via `--cache <path>`.

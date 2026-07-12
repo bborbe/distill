@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
 - feat: rewrite `assembleOutput` — Go now owns all output structure (header, sections, ordering); model contributes only per-id bullet text from `bulletByID` map
 - feat: add run-summary stderr line `distill: N cached, M compiled (K chunks), R retried`
 - refactor: remove `BuildPrompt` shim (superseded by `BuildBatchPrompt`)
+- fix: missing required flag (`--source` / `--output` omitted) now exits 2 (usage) distinct from runtime failure exit 1; `UsageError` type added to `pkg/cli` with `ranRunE` sentinel
+- docs: rewrite `docs/spec.md` to v3 — cache section, batched id-keyed compression prompt, anti-injection invocation contract, validation and retry section, new error-case rows; exit-2 usage-error row confirmed
+- docs: scrub stale marker references from `main.go`, `docs/dod.md`, and `pkg/distill/doc.go`; update README with `.distill-cache.json` cache file, `--no-cache` flag, and cold-recompile-on-system.md-change note
 
 Please choose versions by [Semantic Versioning](http://semver.org/).
 

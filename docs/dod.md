@@ -12,7 +12,7 @@ After completing your implementation, review your own changes against each crite
 
 ## Contract Conformance
 
-- Changes match `docs/spec.md` (frontmatter contract, marker convention, target resolution, error cases, Claude invocation). If `docs/spec.md` needs to change, change it first and call it out.
+- Changes match `docs/spec.md` (frontmatter contract, target resolution, error cases, Claude invocation). If `docs/spec.md` needs to change, change it first and call it out.
 - All exit codes from `docs/spec.md` (`0` / `1` / `2`) are reachable from the implementation.
 
 ## Testing
@@ -20,7 +20,7 @@ After completing your implementation, review your own changes against each crite
 - New code has good test coverage (target >= 80%)
 - Changes to existing code have tests covering at least the changed behavior
 - Tests use Ginkgo v2 / Gomega with Counterfeiter mocks
-- An end-to-end test exercises the worked example from `docs/spec.md` against a stub `ClaudeRunner` and asserts that the stubbed output lands between markers + operator prose outside markers is preserved byte-for-byte
+- An end-to-end test exercises the worked example from `docs/spec.md` against a stub `Runner` that returns `--- bullet id=<id> ---` delimited blocks; it asserts that validated per-rule bullets are assembled by Go under `## section` headings, and that a hijacked or zero-delimiter response leaves the output file untouched
 
 ## Install
 
