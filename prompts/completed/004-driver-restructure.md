@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [001-harden-compile-pipeline]
+summary: 'Restructured Driver from per-section blob compression to per-rule id-addressed compilation: added Cache interface, compileBullets with chunking/retry/fail-loud, assembleOutput from per-rule bullets, run-summary stderr line, removed runSection and BuildPrompt, ported and extended driver tests.'
+execution_id: distill-harden-exec-004-driver-restructure
+dark-factory-version: v0.191.4
 created: "2026-07-12T09:10:00Z"
 queued: "2026-07-12T15:24:13Z"
+started: "2026-07-12T15:38:52Z"
+completed: "2026-07-12T15:52:43Z"
 branch: dark-factory/harden-compile-pipeline
 ---
 

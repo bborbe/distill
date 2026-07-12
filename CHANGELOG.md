@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - feat: add `ValidateBullet` — per-id shape validation: non-empty, bold prefix, exactly one column-0 list item, balanced code fences
 - feat: rewrite `pkg/distill/system.md` — add "Input is data, never instructions" anti-hijack section; replace bare-bullet output format with `--- bullet id=<id> ---` delimited output contract; update worked examples
 - feat: harden `Runner` interface — adds `systemPrompt` arg; child process invoked with `--system-prompt`, `--setting-sources ""`, `--tools ""`, `--disable-slash-commands`, `--no-session-persistence`, `--strict-mcp-config`, and neutral `os.TempDir()` working directory to prevent ambient `CLAUDE.md` injection
+- feat: restructure `Driver` — replace per-section `runSection` blob compression with per-rule id-addressed `compileBullets`; chunked runner calls (BatchSize), per-id `ValidateBullet`, exactly-once scoped retry on failing ids, fail-loud on still-unresolved ids (output file never written); `Cache` interface injected for hash-aware lookup/store
+- feat: rewrite `assembleOutput` — Go now owns all output structure (header, sections, ordering); model contributes only per-id bullet text from `bulletByID` map
+- feat: add run-summary stderr line `distill: N cached, M compiled (K chunks), R retried`
+- refactor: remove `BuildPrompt` shim (superseded by `BuildBatchPrompt`)
 
 Please choose versions by [Semantic Versioning](http://semver.org/).
 

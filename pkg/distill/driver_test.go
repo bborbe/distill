@@ -5,7 +5,9 @@
 package distill_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,23 +19,61 @@ import (
 	"github.com/bborbe/distill/pkg/distill"
 )
 
-// stubRunnerWith builds a Counterfeiter-generated DistillRunner whose Run
-// returns a body keyed on the rule id embedded in the prompt — keeping the
-// behavioural e2e tests readable while still exercising the generated mock.
+// stubRunnerWith builds a DistillRunner whose Run inspects the prompt for
+// <rule id="X"> occurrences and returns one "--- bullet id=X ---\n<bullet>\n"
+// block per found id. When byID[id] is set, that bullet text is used; otherwise
+// a valid placeholder "- **X.** placeholder" is emitted so the run succeeds.
 func stubRunnerWith(byID map[string]string) *mocks.DistillRunner {
 	runner := &mocks.DistillRunner{}
 	runner.RunStub = func(_ context.Context, _ string, _ string, prompt string) (string, error) {
-		for id, body := range byID {
-			if strings.Contains(prompt, "id="+id) {
-				return body, nil
+		var sb strings.Builder
+		remaining := prompt
+		for {
+			const prefix = `<rule id="`
+			start := strings.Index(remaining, prefix)
+			if start < 0 {
+				break
 			}
+			remaining = remaining[start+len(prefix):]
+			end := strings.Index(remaining, `"`)
+			if end < 0 {
+				break
+			}
+			id := remaining[:end]
+			remaining = remaining[end+1:]
+
+			sb.WriteString("--- bullet id=")
+			sb.WriteString(id)
+			sb.WriteString(" ---\n")
+			if bullet, ok := byID[id]; ok {
+				sb.WriteString(bullet)
+			} else {
+				sb.WriteString("- **")
+				sb.WriteString(id)
+				sb.WriteString(".** placeholder")
+			}
+			sb.WriteString("\n")
 		}
-		return "- (no match)", nil
+		return sb.String(), nil
 	}
 	return runner
 }
 
-// promptsSeen returns every prompt the runner was called with, in call order.
+// alwaysMissCache returns a mock Cache whose Get always misses and RuleHash
+// returns a deterministic hash. Used with NoCache: true so only RuleHash and
+// Put are actually called.
+func alwaysMissCache() *mocks.DistillCache {
+	c := &mocks.DistillCache{}
+	c.RuleHashStub = func(model, body string) string {
+		return "hash-" + body
+	}
+	c.GetStub = func(id, hash string) (string, bool) {
+		return "", false
+	}
+	return c
+}
+
+// promptsSeen returns every user prompt the runner was called with, in call order.
 func promptsSeen(r *mocks.DistillRunner) []string {
 	out := make([]string, r.RunCallCount())
 	for i := 0; i < r.RunCallCount(); i++ {
@@ -76,11 +116,14 @@ var _ = Describe("Driver", func() {
 
 	newDriver := func(stub *mocks.DistillRunner, title string) *distill.Driver {
 		return &distill.Driver{
-			Parser: distill.NewParser(),
-			Runner: stub,
-			Writer: distill.NewWriter(),
-			Stderr: GinkgoWriter,
-			Title:  title,
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			Title:     title,
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
 		}
 	}
 
@@ -97,13 +140,13 @@ var _ = Describe("Driver", func() {
 
 	It("omits the title heading when --title is empty", func() {
 		writeSource("a.md", "---\ndistill:\n  section: Git\n---\nbody\n")
-		stub := stubRunnerWith(map[string]string{"a": "- one"})
+		stub := stubRunnerWith(map[string]string{"a": "- **A.** one"})
 		Expect(newDriver(stub, "").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		got := readOutput()
 		Expect(got).NotTo(ContainSubstring("\n# "))
 	})
 
-	It("groups rules into one prompt per section in (order, id) order", func() {
+	It("groups rules into one prompt per chunk in (order, id) order", func() {
 		writeSource(
 			"late.md",
 			"---\ndistill:\n  section: Git\n  order: 20\n  id: rule-late\n---\nbody late\n",
@@ -112,12 +155,12 @@ var _ = Describe("Driver", func() {
 			"early.md",
 			"---\ndistill:\n  section: Git\n  order: 10\n  id: rule-early\n---\nbody early\n",
 		)
-		stub := stubRunnerWith(map[string]string{"rule-early": "- early; - late"})
+		stub := stubRunnerWith(nil)
 		Expect(newDriver(stub, "").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		Expect(promptsSeen(stub)).To(HaveLen(1))
 		prompt := promptsSeen(stub)[0]
-		idxEarly := strings.Index(prompt, "id=rule-early")
-		idxLate := strings.Index(prompt, "id=rule-late")
+		idxEarly := strings.Index(prompt, `id="rule-early"`)
+		idxLate := strings.Index(prompt, `id="rule-late"`)
 		Expect(idxEarly).To(BeNumerically(">=", 0))
 		Expect(idxLate).To(BeNumerically(">", idxEarly))
 	})
@@ -140,7 +183,7 @@ var _ = Describe("Driver", func() {
 	It("skips source files without a distill: frontmatter block", func() {
 		writeSource("docs.md", "---\ntitle: docs\n---\nnot a rule\n")
 		writeSource("rule.md", "---\ndistill:\n  section: Git\n---\nbody\n")
-		stub := stubRunnerWith(map[string]string{"rule": "- ok"})
+		stub := stubRunnerWith(map[string]string{"rule": "- **Rule.** ok"})
 		Expect(newDriver(stub, "").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		Expect(promptsSeen(stub)).To(HaveLen(1))
 	})
@@ -151,10 +194,10 @@ var _ = Describe("Driver", func() {
 			"drop.md",
 			"---\ndistill:\n  section: Git\n  id: drop\n  disabled: true\n---\nbody drop\n",
 		)
-		stub := stubRunnerWith(map[string]string{"keep": "- only keep"})
+		stub := stubRunnerWith(map[string]string{"keep": "- **Keep.** only keep"})
 		Expect(newDriver(stub, "").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		Expect(promptsSeen(stub)).To(HaveLen(1))
-		Expect(promptsSeen(stub)[0]).NotTo(ContainSubstring("id=drop"))
+		Expect(promptsSeen(stub)[0]).NotTo(ContainSubstring(`id="drop"`))
 	})
 
 	It("errors when distill.section is missing", func() {
@@ -177,10 +220,273 @@ var _ = Describe("Driver", func() {
 		Expect(
 			os.WriteFile(outputPath, []byte("OLD STALE CONTENT\nshould vanish\n"), 0o644),
 		).To(Succeed())
-		stub := stubRunnerWith(map[string]string{"a": "- new bullet"})
+		stub := stubRunnerWith(map[string]string{"a": "- **A.** new bullet"})
 		Expect(newDriver(stub, "T").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		got := readOutput()
 		Expect(got).NotTo(ContainSubstring("OLD STALE CONTENT"))
-		Expect(got).To(ContainSubstring("- new bullet"))
+		Expect(got).To(ContainSubstring("- **A.** new bullet"))
+	})
+
+	It("hijack response leaves output file untouched and names unresolved ids", func() {
+		writeSource("r1.md", "---\ndistill:\n  section: Git\n  id: r1\n---\nbody r1\n")
+		// Pre-existing output with known bytes.
+		preExisting := []byte("PRIOR OUTPUT\n")
+		Expect(os.WriteFile(outputPath, preExisting, 0o644)).To(Succeed())
+
+		// Hijack: runner returns zero delimiters on every call.
+		hijackStub := &mocks.DistillRunner{}
+		hijackStub.RunReturns("This is a refusal with no bullet delimiters.", nil)
+
+		mockWriter := &mocks.DistillWriter{}
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    hijackStub,
+			Writer:    mockWriter,
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+		err := driver.Run(ctx, sourceDir, outputPath)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("r1"))
+		Expect(mockWriter.WriteCallCount()).To(Equal(0))
+
+		// Pre-existing file is byte-identical.
+		got, readErr := os.ReadFile(outputPath)
+		Expect(readErr).NotTo(HaveOccurred())
+		Expect(got).To(Equal(preExisting))
+	})
+
+	It("chunks rules into batches of BatchSize runner calls", func() {
+		ids := []string{"a", "b", "c", "d", "e"}
+		for i, name := range ids {
+			writeSource(
+				name+".md",
+				fmt.Sprintf(
+					"---\ndistill:\n  section: Git\n  id: %s\n  order: %d\n---\nbody %s\n",
+					name, (i+1)*10, name,
+				),
+			)
+		}
+		stub := stubRunnerWith(nil)
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   true,
+			BatchSize: 2,
+			Cache:     alwaysMissCache(),
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		// ceil(5/2) = 3 runner calls.
+		Expect(stub.RunCallCount()).To(Equal(3))
+		// First chunk: a, b (order 10, 20).
+		_, _, _, p0 := stub.RunArgsForCall(0)
+		Expect(p0).To(ContainSubstring(`id="a"`))
+		Expect(p0).To(ContainSubstring(`id="b"`))
+		Expect(p0).NotTo(ContainSubstring(`id="c"`))
+		// Second chunk: c, d.
+		_, _, _, p1 := stub.RunArgsForCall(1)
+		Expect(p1).To(ContainSubstring(`id="c"`))
+		Expect(p1).To(ContainSubstring(`id="d"`))
+		Expect(p1).NotTo(ContainSubstring(`id="e"`))
+		// Third chunk: e.
+		_, _, _, p2 := stub.RunArgsForCall(2)
+		Expect(p2).To(ContainSubstring(`id="e"`))
+	})
+
+	It("retries an id whose first-pass bullet fails validation", func() {
+		writeSource("r1.md", "---\ndistill:\n  section: Git\n  id: r1\n---\nbody r1\n")
+		stub := &mocks.DistillRunner{}
+		// First call: returns a bullet that fails ValidateBullet (no "- **" prefix).
+		stub.RunReturnsOnCall(0, "--- bullet id=r1 ---\nplain text, not a bullet\n", nil)
+		// Second call (retry): returns a valid bullet.
+		stub.RunReturnsOnCall(1, "--- bullet id=r1 ---\n- **R1.** valid\n", nil)
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		Expect(stub.RunCallCount()).To(Equal(2))
+	})
+
+	It("retries only the failing ids in a scoped second call", func() {
+		writeSource("r1.md", "---\ndistill:\n  section: Git\n  id: r1\n  order: 10\n---\nbody r1\n")
+		writeSource("r2.md", "---\ndistill:\n  section: Git\n  id: r2\n  order: 20\n---\nbody r2\n")
+
+		stub := &mocks.DistillRunner{}
+		// First call: only returns r2 (omits r1).
+		stub.RunReturnsOnCall(0, "--- bullet id=r2 ---\n- **R2.** body r2\n", nil)
+		// Second call (retry for r1): returns r1.
+		stub.RunReturnsOnCall(1, "--- bullet id=r1 ---\n- **R1.** body r1\n", nil)
+
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		Expect(stub.RunCallCount()).To(Equal(2))
+
+		// Second prompt must contain only r1, not r2.
+		_, _, _, secondPrompt := stub.RunArgsForCall(1)
+		Expect(secondPrompt).To(ContainSubstring(`id="r1"`))
+		Expect(secondPrompt).NotTo(ContainSubstring(`id="r2"`))
+
+		// Output contains both bullets.
+		got := readOutput()
+		Expect(got).To(ContainSubstring("- **R1.** body r1"))
+		Expect(got).To(ContainSubstring("- **R2.** body r2"))
+	})
+
+	It("prints a summary line to stderr", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		stub := stubRunnerWith(nil)
+		var stderrBuf bytes.Buffer
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    &stderrBuf,
+			Title:     "",
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		Expect(stderrBuf.String()).To(MatchRegexp(
+			`distill: \d+ cached, \d+ compiled \(\d+ chunks\), \d+ retried`,
+		))
+	})
+
+	It("returns an error and does not call Writer when the runner fails", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		errStub := &mocks.DistillRunner{}
+		errStub.RunReturns("", fmt.Errorf("claude failed"))
+		mockWriter := &mocks.DistillWriter{}
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    errStub,
+			Writer:    mockWriter,
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+		err := driver.Run(ctx, sourceDir, outputPath)
+		Expect(err).To(HaveOccurred())
+		Expect(mockWriter.WriteCallCount()).To(Equal(0))
+	})
+
+	It("returns an error when Writer.Write fails", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		stub := stubRunnerWith(nil)
+		mockWriter := &mocks.DistillWriter{}
+		mockWriter.WriteReturns(fmt.Errorf("disk full"))
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    mockWriter,
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(MatchError(ContainSubstring("disk full")))
+	})
+
+	It("warns to stderr when cache Load returns an error and continues cold", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		stub := stubRunnerWith(nil)
+		cache := &mocks.DistillCache{}
+		cache.RuleHashStub = func(model, body string) string { return "h" }
+		cache.LoadReturns(fmt.Errorf("corrupt cache"))
+		cache.GetStub = func(id, hash string) (string, bool) { return "", false }
+		var stderrBuf bytes.Buffer
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    &stderrBuf,
+			Title:     "",
+			NoCache:   false,
+			BatchSize: 100,
+			Cache:     cache,
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		Expect(stderrBuf.String()).To(ContainSubstring("cache load warning"))
+		// Runner was called because the cache was cold (all misses).
+		Expect(stub.RunCallCount()).To(Equal(1))
+	})
+
+	It("calls Cache.Save with enabled ids on a successful run when NoCache=false", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		stub := stubRunnerWith(nil)
+		cache := &mocks.DistillCache{}
+		cache.RuleHashStub = func(model, body string) string { return "h" }
+		cache.GetStub = func(id, hash string) (string, bool) { return "", false }
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   false,
+			BatchSize: 100,
+			Cache:     cache,
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		Expect(cache.SaveCallCount()).To(Equal(1))
+		_, keepIDs := cache.SaveArgsForCall(0)
+		Expect(keepIDs).To(ConsistOf("a"))
+	})
+
+	It("calls Cache.SaveMerged (not Save) on compile failure when NoCache=false", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		// Runner always returns zero delimiters → compile fails.
+		errStub := &mocks.DistillRunner{}
+		errStub.RunReturns("no delimiters here", nil)
+		cache := &mocks.DistillCache{}
+		cache.RuleHashStub = func(model, body string) string { return "h" }
+		cache.GetStub = func(id, hash string) (string, bool) { return "", false }
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    errStub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			Title:     "",
+			NoCache:   false,
+			BatchSize: 100,
+			Cache:     cache,
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(HaveOccurred())
+		Expect(cache.SaveMergedCallCount()).To(Equal(1))
+		Expect(cache.SaveCallCount()).To(Equal(0))
+	})
+
+	Describe("ExitCode", func() {
+		It("returns 0 for nil error", func() {
+			Expect(distill.ExitCode(nil)).To(Equal(0))
+		})
+		It("returns 1 for non-nil error", func() {
+			Expect(distill.ExitCode(fmt.Errorf("oops"))).To(Equal(1))
+		})
 	})
 })
