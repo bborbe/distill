@@ -1,5 +1,5 @@
 ---
-status: verifying
+status: completed
 tags:
     - dark-factory
     - spec
@@ -7,6 +7,7 @@ approved: "2026-07-12T08:55:19Z"
 generating: "2026-07-12T08:55:20Z"
 prompted: "2026-07-12T09:07:18Z"
 verifying: "2026-07-12T16:09:05Z"
+completed: "2026-07-12T16:24:43Z"
 branch: dark-factory/harden-compile-pipeline
 ---
 
