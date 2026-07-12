@@ -104,8 +104,14 @@ var _ = Describe("Driver", func() {
 	})
 
 	It("groups rules into one prompt per section in (order, id) order", func() {
-		writeSource("late.md", "---\ndistill:\n  section: Git\n  order: 20\n  id: rule-late\n---\nbody late\n")
-		writeSource("early.md", "---\ndistill:\n  section: Git\n  order: 10\n  id: rule-early\n---\nbody early\n")
+		writeSource(
+			"late.md",
+			"---\ndistill:\n  section: Git\n  order: 20\n  id: rule-late\n---\nbody late\n",
+		)
+		writeSource(
+			"early.md",
+			"---\ndistill:\n  section: Git\n  order: 10\n  id: rule-early\n---\nbody early\n",
+		)
 		stub := stubRunnerWith(map[string]string{"rule-early": "- early; - late"})
 		Expect(newDriver(stub, "").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		Expect(promptsSeen(stub)).To(HaveLen(1))
@@ -141,7 +147,10 @@ var _ = Describe("Driver", func() {
 
 	It("excludes disabled rules from prompts and output", func() {
 		writeSource("keep.md", "---\ndistill:\n  section: Git\n  id: keep\n---\nbody keep\n")
-		writeSource("drop.md", "---\ndistill:\n  section: Git\n  id: drop\n  disabled: true\n---\nbody drop\n")
+		writeSource(
+			"drop.md",
+			"---\ndistill:\n  section: Git\n  id: drop\n  disabled: true\n---\nbody drop\n",
+		)
 		stub := stubRunnerWith(map[string]string{"keep": "- only keep"})
 		Expect(newDriver(stub, "").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		Expect(promptsSeen(stub)).To(HaveLen(1))
@@ -165,7 +174,9 @@ var _ = Describe("Driver", func() {
 
 	It("regenerates the output file from scratch (overwrites prior content)", func() {
 		writeSource("a.md", "---\ndistill:\n  section: Git\n---\nbody\n")
-		Expect(os.WriteFile(outputPath, []byte("OLD STALE CONTENT\nshould vanish\n"), 0o644)).To(Succeed())
+		Expect(
+			os.WriteFile(outputPath, []byte("OLD STALE CONTENT\nshould vanish\n"), 0o644),
+		).To(Succeed())
 		stub := stubRunnerWith(map[string]string{"a": "- new bullet"})
 		Expect(newDriver(stub, "T").Run(ctx, sourceDir, outputPath)).To(Succeed())
 		got := readOutput()

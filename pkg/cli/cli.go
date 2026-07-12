@@ -63,11 +63,16 @@ func Run(ctx context.Context, args []string) error {
 		},
 	}
 
-	rootCmd.Flags().StringVar(&sourceDir, "source", "", "directory of source rule markdown files (required)")
-	rootCmd.Flags().StringVar(&outputPath, "output", "", "output markdown file path; will be overwritten (required)")
-	rootCmd.Flags().StringVar(&title, "title", "", "optional `# <text>` heading written under the auto-generated warning")
-	rootCmd.Flags().StringVar(&model, "model", "sonnet", "Claude model name passed to `claude --model`")
-	rootCmd.Flags().BoolVar(&verbose, "verbose", false, "print per-section prompt + response to stderr")
+	rootCmd.Flags().
+		StringVar(&sourceDir, "source", "", "directory of source rule markdown files (required)")
+	rootCmd.Flags().
+		StringVar(&outputPath, "output", "", "output markdown file path; will be overwritten (required)")
+	rootCmd.Flags().
+		StringVar(&title, "title", "", "optional `# <text>` heading written under the auto-generated warning")
+	rootCmd.Flags().
+		StringVar(&model, "model", "sonnet", "Claude model name passed to `claude --model`")
+	rootCmd.Flags().
+		BoolVar(&verbose, "verbose", false, "print per-section prompt + response to stderr")
 	_ = rootCmd.MarkFlagRequired("source")
 	_ = rootCmd.MarkFlagRequired("output")
 
