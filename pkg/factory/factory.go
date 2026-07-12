@@ -16,15 +16,23 @@ import (
 )
 
 // CreateDriver returns a *distill.Driver wired with the real Parser, Runner,
-// and Writer implementations.
-func CreateDriver(stderr io.Writer, model, title string, verbose bool) *distill.Driver {
+// Writer, and the caller-supplied Cache. BatchSize is preset to 15; NoCache is
+// set by pkg/cli after CreateDriver returns.
+func CreateDriver(
+	stderr io.Writer,
+	cache distill.Cache,
+	model, title string,
+	verbose bool,
+) *distill.Driver {
 	return &distill.Driver{
-		Parser:  distill.NewParser(),
-		Runner:  distill.NewRunner(),
-		Writer:  distill.NewWriter(),
-		Stderr:  stderr,
-		Verbose: verbose,
-		Model:   model,
-		Title:   title,
+		Parser:    distill.NewParser(),
+		Runner:    distill.NewRunner(),
+		Writer:    distill.NewWriter(),
+		Cache:     cache,
+		BatchSize: 15,
+		Stderr:    stderr,
+		Verbose:   verbose,
+		Model:     model,
+		Title:     title,
 	}
 }

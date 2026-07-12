@@ -1,10 +1,12 @@
 ---
-status: approved
+status: rejected
 tags:
     - dark-factory
     - spec
 approved: "2026-06-26T17:18:18Z"
 generating: "2026-06-27T09:31:20Z"
+rejected: "2026-07-11T22:21:16Z"
+rejected_reason: Already shipped as distill v0.1.0-v0.2.3 (current code IS the LLM-compile design); closing stale approved-state bookkeeping. Superseded by the v0.3.0 hardening spec (cache + validation + anti-injection). Not a design rejection.
 branch: dark-factory/implement-distill-llm-compile
 ---
 
