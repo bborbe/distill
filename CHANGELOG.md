@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.3.0
 
 - fix: bump `go` directive to 1.26.5 — clears stdlib vulns GO-2026-4970 (os symlink root escape) and GO-2026-5856 (crypto/tls ECH leak) flagged by CI vulncheck
 - docs: add `docs/releasing-distill.md` — binary-only release guide (scenario gate, github-releaser-agent auto-release, install + regenerate both CLAUDE.md files)
