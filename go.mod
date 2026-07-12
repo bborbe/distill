@@ -31,5 +31,3 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 )
-
-exclude cloud.google.com/go v0.26.0
