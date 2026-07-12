@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.3.1
 
 - fix: remove `exclude cloud.google.com/go v0.26.0` from `go.mod` — it broke `go install github.com/bborbe/distill@latest`/`@vX.Y.Z` ("go.mod must not contain directives …"), so `make install-distill` never worked; the directive was vestigial (`cloud.google.com/go` is not a dependency)
 - fix: `scenarios/001-compile-anti-injection.md` Setup built from the ephemeral `distill-harden` worktree — now builds from the durable `~/Documents/workspaces/distill` checkout (or a throwaway tag worktree)
