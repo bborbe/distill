@@ -9,12 +9,13 @@ import (
 )
 
 type DistillRunner struct {
-	RunStub        func(context.Context, string, string) (string, error)
+	RunStub        func(context.Context, string, string, string) (string, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
 		arg3 string
+		arg4 string
 	}
 	runReturns struct {
 		result1 string
@@ -28,20 +29,21 @@ type DistillRunner struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *DistillRunner) Run(arg1 context.Context, arg2 string, arg3 string) (string, error) {
+func (fake *DistillRunner) Run(arg1 context.Context, arg2 string, arg3 string, arg4 string) (string, error) {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
 		arg3 string
-	}{arg1, arg2, arg3})
+		arg4 string
+	}{arg1, arg2, arg3, arg4})
 	stub := fake.RunStub
 	fakeReturns := fake.runReturns
-	fake.recordInvocation("Run", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("Run", []interface{}{arg1, arg2, arg3, arg4})
 	fake.runMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3)
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -55,17 +57,17 @@ func (fake *DistillRunner) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *DistillRunner) RunCalls(stub func(context.Context, string, string) (string, error)) {
+func (fake *DistillRunner) RunCalls(stub func(context.Context, string, string, string) (string, error)) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.RunStub = stub
 }
 
-func (fake *DistillRunner) RunArgsForCall(i int) (context.Context, string, string) {
+func (fake *DistillRunner) RunArgsForCall(i int) (context.Context, string, string, string) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
 func (fake *DistillRunner) RunReturns(result1 string, result2 error) {

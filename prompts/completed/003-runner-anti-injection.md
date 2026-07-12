@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [001-harden-compile-pipeline]
+summary: Extended Runner interface with systemPrompt arg, implemented anti-injection flag set plus neutral cwd, regenerated DistillRunner mock to 4-arg signature, fixed driver and test call sites, added in-package unit tests for buildClaudeArgs and neutralDir.
+execution_id: distill-harden-exec-003-runner-anti-injection
+dark-factory-version: v0.191.4
 created: "2026-07-12T09:10:00Z"
 queued: "2026-07-12T15:24:13Z"
+started: "2026-07-12T15:35:18Z"
+completed: "2026-07-12T15:38:50Z"
 branch: dark-factory/harden-compile-pipeline
 ---
 

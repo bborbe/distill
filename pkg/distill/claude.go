@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -18,10 +19,12 @@ import (
 
 //counterfeiter:generate -o ../../mocks/distill-runner.go --fake-name DistillRunner . Runner
 
-// Runner invokes `claude --print` with prompt on stdin and returns the final
-// `result` event's text.
+// Runner invokes `claude --print` with the compression instructions passed
+// out-of-band via --system-prompt and the batch prompt on stdin. It returns the
+// final `result` event's text. The child process is invoked so it cannot read
+// or obey the operator's ambient CLAUDE.md.
 type Runner interface {
-	Run(ctx context.Context, model string, prompt string) (string, error)
+	Run(ctx context.Context, model string, systemPrompt string, prompt string) (string, error)
 }
 
 // NewRunner returns a Runner that spawns the `claude` binary on $PATH.
@@ -36,21 +39,46 @@ type streamEvent struct {
 	Result string `json:"result"`
 }
 
-// Run executes `claude --print --output-format stream-json --verbose
-// --strict-mcp-config --model <model>`, sends prompt on stdin, parses stdout
-// stream-JSON, and returns the final `result` event's text. Trailing whitespace
-// is trimmed.
-func (r *runner) Run(ctx context.Context, model string, prompt string) (string, error) {
+// buildClaudeArgs returns the argv (after "claude") for the given model and
+// system-prompt string.
+func buildClaudeArgs(model, systemPrompt string) []string {
 	args := []string{
 		"--print",
 		"--output-format", "stream-json",
 		"--verbose",
 		"--strict-mcp-config",
+		"--system-prompt", systemPrompt,
+		"--setting-sources", "",
+		"--tools", "",
+		"--disable-slash-commands",
+		"--no-session-persistence",
 	}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
+	return args
+}
+
+// neutralDir returns the neutral working directory for the claude subprocess,
+// preventing the child from re-reading the project-root CLAUDE.md.
+func neutralDir() string {
+	return os.TempDir()
+}
+
+// Run executes `claude --print --output-format stream-json --verbose
+// --strict-mcp-config --system-prompt <systemPrompt> --setting-sources ""
+// --tools "" --disable-slash-commands --no-session-persistence [--model m]`,
+// sends prompt on stdin, parses stdout stream-JSON, and returns the final
+// `result` event's text. Trailing whitespace is trimmed.
+func (r *runner) Run(
+	ctx context.Context,
+	model string,
+	systemPrompt string,
+	prompt string,
+) (string, error) {
+	args := buildClaudeArgs(model, systemPrompt)
 	cmd := exec.CommandContext(ctx, "claude", args...)
+	cmd.Dir = neutralDir()
 	cmd.Stdin = bytes.NewBufferString(prompt)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {

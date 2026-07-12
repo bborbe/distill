@@ -22,7 +22,7 @@ import (
 // behavioural e2e tests readable while still exercising the generated mock.
 func stubRunnerWith(byID map[string]string) *mocks.DistillRunner {
 	runner := &mocks.DistillRunner{}
-	runner.RunStub = func(_ context.Context, _ string, prompt string) (string, error) {
+	runner.RunStub = func(_ context.Context, _ string, _ string, prompt string) (string, error) {
 		for id, body := range byID {
 			if strings.Contains(prompt, "id="+id) {
 				return body, nil
@@ -37,7 +37,7 @@ func stubRunnerWith(byID map[string]string) *mocks.DistillRunner {
 func promptsSeen(r *mocks.DistillRunner) []string {
 	out := make([]string, r.RunCallCount())
 	for i := 0; i < r.RunCallCount(); i++ {
-		_, _, prompt := r.RunArgsForCall(i)
+		_, _, _, prompt := r.RunArgsForCall(i)
 		out[i] = prompt
 	}
 	return out

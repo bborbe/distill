@@ -73,7 +73,7 @@ func (d *Driver) runSection(ctx context.Context, section string, rules []Rule) (
 	if d.Verbose {
 		fmt.Fprintf(d.Stderr, "\n--- distill prompt section=%q ---\n%s\n", section, prompt)
 	}
-	body, err := d.Runner.Run(ctx, d.Model, prompt)
+	body, err := d.Runner.Run(ctx, d.Model, SystemPrompt(), prompt)
 	if err != nil {
 		return "", errors.Wrapf(ctx, err, "claude run section=%q", section)
 	}
