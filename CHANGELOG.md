@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- fix: remove `exclude cloud.google.com/go v0.26.0` from `go.mod` — it broke `go install github.com/bborbe/distill@latest`/`@vX.Y.Z` ("go.mod must not contain directives …"), so `make install-distill` never worked; the directive was vestigial (`cloud.google.com/go` is not a dependency)
+- fix: `scenarios/001-compile-anti-injection.md` Setup built from the ephemeral `distill-harden` worktree — now builds from the durable `~/Documents/workspaces/distill` checkout (or a throwaway tag worktree)
+
 ## v0.3.0
 
 - fix: bump `go` directive to 1.26.5 — clears stdlib vulns GO-2026-4970 (os symlink root escape) and GO-2026-5856 (crypto/tls ECH leak) flagged by CI vulncheck
