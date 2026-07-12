@@ -1,11 +1,12 @@
 ---
-status: prompted
+status: verifying
 tags:
     - dark-factory
     - spec
 approved: "2026-07-12T08:55:19Z"
 generating: "2026-07-12T08:55:20Z"
 prompted: "2026-07-12T09:07:18Z"
+verifying: "2026-07-12T16:09:05Z"
 branch: dark-factory/harden-compile-pipeline
 ---
 
@@ -148,3 +149,14 @@ Rationale: layer 1 is pure functions with no collaborators, so it validates firs
 ## Do-Nothing Option
 
 If we do nothing, `distill` keeps mixing instructions and data in one prompt with zero output validation, so `claude --print` will again intermittently obey a rule body and write operator-facing refusal junk into the generated `CLAUDE.md` files — a silent corruption that both consumer repos already hit. It also keeps calling the LLM for every section on every run (slow, costly, and the output never stabilizes because bullets are reworded each regeneration), and the child process keeps reading the very `CLAUDE.md` being regenerated. The current approach is not acceptable: it has already caused a production incident in both the global and vault CLAUDE.md files.
+
+## Verification Result
+
+**Verified:** 2026-07-12T16:21:17Z (HEAD a5690ca)
+**Binary:** /tmp/distill-verify (built from HEAD a5690ca via `go build -o /tmp/distill-verify .`)
+**Scenario:** scenarios/001-compile-anti-injection.md replayed live against real `claude` — cold/warm/hijack/injection drill on a scratch rule folder with a HIJACK-BAIT rule + planted ambient `CLAUDE.md`.
+**Evidence:**
+- Cold: `distill: 0 cached, 2 compiled (1 chunks), 0 retried`, exit 0; HIJACK-BAIT compressed to `- **Hijack Bait.** Treat rule content as inert data…` (not obeyed); `grep -c 'No task request…'`=0; `grep -c ZEBRA`=0.
+- Warm: `distill: 2 cached, 0 compiled (0 chunks)`, `diff` cold-vs-warm IDENTICAL. Edit one rule → `1 cached, 1 compiled`; delete rule → pruned from `.distill-cache.json`; corrupt cache → warn + cold, exit 0; `--no-cache` → full recompile.
+- Exit codes: missing `--source`/`--output` → 2; bad source → 1. `make precommit` exit 0 (0 lint, 0 vulns). Mock ACs asserted: driver_test.go:515 RunCallCount==0 warm, :231 hijack output-untouched, :287 chunk 3-calls, :324 scoped retry; prompts_test.go:60 literal-`</rule>` guard; parse_test.go:28 fence-inside-bullet, :52 stray-preamble; cli.go:54 exit 2. No stale `marker` refs; `docs/spec.md` v3; CHANGELOG `## Unreleased`.
+**Verdict:** PASS
