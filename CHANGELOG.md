@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore(dev): migrate `.envrc` to `teamvault-cli password` (from the dropped v4 `teamvault-password` binary); keep `--teamvault-config` so the personal-instance key stays instance-pinned
+
 ## v0.3.1
 
 - fix: remove `exclude cloud.google.com/go v0.26.0` from `go.mod` — it broke `go install github.com/bborbe/distill@latest`/`@vX.Y.Z` ("go.mod must not contain directives …"), so `make install-distill` never worked; the directive was vestigial (`cloud.google.com/go` is not a dependency)
