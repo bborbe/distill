@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Update dependencies for security (govulncheck/trivy clean)
+
 ## v0.4.0
 
 - chore(dev): migrate `.envrc` to `teamvault-cli password` (from the dropped v4 `teamvault-password` binary); keep `--teamvault-config` so the personal-instance key stays instance-pinned
