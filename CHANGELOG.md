@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore(dev): point `.envrc` `--teamvault-config` at `~/.config/teamvault-cli/config.json` (legacy `~/.teamvault.json` removed, so the prior path failed with an empty-URL error)
+
 ## v0.4.1
 
 - Update dependencies for security (govulncheck/trivy clean)
