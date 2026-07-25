@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- feat(hooks): ship `hooks/deny-generated-file-edits.sh` — Claude Code `PreToolUse` hook that denies `Edit`/`Write`/`NotebookEdit` on distill-generated files and quotes the file's own `Source:`/`Regenerate:` banner lines back to the agent; detection is content-based (banner grep), not path-based, so it needs no per-file configuration. Previously local-only, which left distill's edit-protection story undocumented and uninstallable.
+- docs: add `docs/adopting-distill.md` — migration runbook for converting a hand-written `CLAUDE.md` to a distill-generated one (source-dir convention, recovery point, section/order ranges, one-rule-per-file split, generate, verify, hook install), plus gotchas and a worked example
+- docs: add README § Edit protection hook — what the hook does, install command, and the `settings.json` `PreToolUse` snippet
+
 ## v0.4.2
 
 - chore(dev): point `.envrc` `--teamvault-config` at `~/.config/teamvault-cli/config.json` (legacy `~/.teamvault.json` removed, so the prior path failed with an empty-URL error)
