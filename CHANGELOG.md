@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.5.0
 
 - feat(hooks): ship `hooks/deny-generated-file-edits.sh` — Claude Code `PreToolUse` hook that denies `Edit`/`Write`/`NotebookEdit` on distill-generated files and quotes the file's own `Source:`/`Regenerate:` banner lines back to the agent; detection is content-based (banner grep), not path-based, so it needs no per-file configuration. Previously local-only, which left distill's edit-protection story undocumented and uninstallable.
 - docs: add `docs/adopting-distill.md` — migration runbook for converting a hand-written `CLAUDE.md` to a distill-generated one (source-dir convention, recovery point, section/order ranges, one-rule-per-file split, generate, verify, hook install), plus gotchas and a worked example
