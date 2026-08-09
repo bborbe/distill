@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- feat: publish a Homebrew cask to `bborbe/homebrew-tap` so the CLI installs with `brew install bborbe/tap/distill`. Adds `.goreleaser.yaml` and `.github/workflows/release.yml`, triggered on `release: published` rather than tag push — `autoRelease` tags every merge, so a tag-triggered build would ship a cask per merge and bypass the release gate. Publishing a GitHub Release (the existing milestone step) is now also the promotion to brew; a tag alone does not reach it.
+- fix: the `gh release create` notes command in `docs/releasing-distill.md` produced **empty** notes. `awk "/^## $TAG/,/^## v/"` is a range whose END pattern is evaluated on the same record the START matched, and `## vX.Y.Z` matches `^## v` itself — so it emitted only the heading, which `| head -n -1` then stripped. Replaced with a flag-based form and documented the pitfall inline. Same bug was fixed in `dark-factory` (PR #74) and `vault-cli` (PR #70); the doc had been copied across all three repos.
+
 ## v0.5.0
 
 - feat(hooks): ship `hooks/deny-generated-file-edits.sh` — Claude Code `PreToolUse` hook that denies `Edit`/`Write`/`NotebookEdit` on distill-generated files and quotes the file's own `Source:`/`Regenerate:` banner lines back to the agent; detection is content-based (banner grep), not path-based, so it needs no per-file configuration. Previously local-only, which left distill's edit-protection story undocumented and uninstallable.

@@ -103,13 +103,43 @@ after a `system.md` change is a full cold recompile (every cache entry invalidat
 
 `autoRelease` creates a `vX.Y.Z` git tag; that is sufficient for `go install …@vX.Y.Z`.
 A **GitHub Release** (Releases tab, notes, feed) is a separate deliberate act — create one
-only for milestones, not every patch tag:
+only for milestones, not every patch tag.
+
+**Publishing a Release also ships the Homebrew cask.** `.github/workflows/release.yml`
+triggers on `release: published` and runs goreleaser, which builds darwin/linux archives,
+attaches them to this Release, and pushes the cask to
+[`bborbe/homebrew-tap`](https://github.com/bborbe/homebrew-tap). So publishing here is what
+makes `brew install bborbe/tap/distill` serve the new version.
+
+**A tag alone never reaches brew.** This is deliberate: `autoRelease` tags every merge, and
+publishing a cask per tag would bypass the gate above. The corollary of "milestones only" is
+that brew users stay on the last promoted version until you promote again — `go install
+@latest` is the fast track, brew is the verified one.
 
 ```bash
 TAG=$(git describe --tags --abbrev=0)
 gh release create "$TAG" --target master --title "$TAG" \
-  --notes "$(awk "/^## $TAG/,/^## v/" CHANGELOG.md | head -n -1)"
+  --notes "$(awk -v tag="## $TAG" '$0 == tag {f=1; next} /^## v/ {f=0} f' CHANGELOG.md)"
 ```
+
+Do not "simplify" that `awk` into a range like `awk "/^## $TAG/,/^## v/"`. A range evaluates
+its END pattern on the same record where the START matched, and the `## vX.Y.Z` heading
+matches `^## v` itself — so the range opens and closes on that one line, and the old
+`| head -n -1` then stripped it, yielding **empty notes**. The flag form above skips the
+heading and stops at the next one.
+
+Then confirm the cask actually shipped — publishing the Release only *starts* the workflow:
+
+```bash
+gh run list --workflow=release.yml --limit 1          # workflow ran and succeeded
+gh release view "$TAG" --json assets --jq '.assets[].name'   # archives attached
+gh api repos/bborbe/homebrew-tap/contents/Casks/distill.rb --jq '.content' \
+  | base64 -d | grep -E '^\s+version\s+'              # cask at the new version
+brew update && brew install bborbe/tap/distill && distill --version
+```
+
+If the workflow never ran, the Release was created as a **draft** — drafts do not fire
+`release: published`. Publish it (`gh release edit "$TAG" --draft=false`).
 
 ## See also
 

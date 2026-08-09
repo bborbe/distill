@@ -1,0 +1,64 @@
+version: 2
+
+project_name: distill
+
+builds:
+  - id: distill
+    binary: distill
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/bborbe/distill/pkg/cli.version={{ .Tag }}
+
+archives:
+  - id: distill
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: bborbe
+    name: distill
+
+  # `mode` governs the release NOTES only — it has nothing to do with artifacts.
+  # This workflow is triggered by `release: published`, so the Release already
+  # exists with notes taken from CHANGELOG.md by the promotion step. Keep them;
+  # `append` would stack goreleaser's generated commit list underneath on every
+  # run, leaving one copy per attempt (observed on dark-factory v0.193.0).
+  mode: keep-existing
+
+  # Retry safety. Assets upload before the cask step, so a run that fails at the
+  # cask leaves them behind and the next attempt dies with
+  # `422 Validation Failed [Code:already_exists]` until they are deleted by hand.
+  # This makes goreleaser delete and re-upload on 422. THIS is the artifact-level
+  # setting; `mode` is not.
+  replace_existing_artifacts: true
+
+homebrew_casks:
+  - name: distill
+    description: "Compile per-rule markdown files into one AI-targeted file (e.g. CLAUDE.md)"
+    homepage: "https://github.com/bborbe/distill"
+    repository:
+      owner: bborbe
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: goreleaser-bot
+      email: goreleaser@benjamin-borbe.de
+    # The binary is unsigned; strip the download quarantine so it runs without a
+    # Gatekeeper "unidentified developer" prompt on first use.
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/distill"]
