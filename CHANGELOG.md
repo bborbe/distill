@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- update Go to 1.26.6 and update dependencies, clearing stdlib vulns GO-2026-5026, GO-2026-5942, GO-2026-5972, GO-2026-6088, GO-2026-6089, GO-2026-6090, GO-2026-6091, GO-2026-6218 and fixing golang.org/x/mod CVEs CVE-2026-56864 and CVE-2026-56865
+
 ## v0.6.0
 
 - feat: publish a Homebrew cask to `bborbe/homebrew-tap` so the CLI installs with `brew install bborbe/tap/distill`. Adds `.goreleaser.yaml` and `.github/workflows/release.yml`, triggered on `release: published` rather than tag push — `autoRelease` tags every merge, so a tag-triggered build would ship a cask per merge and bypass the release gate. Publishing a GitHub Release (the existing milestone step) is now also the promotion to brew; a tag alone does not reach it.
