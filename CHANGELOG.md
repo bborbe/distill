@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore: Bump errcheck to v1.20.0 and golangci-lint to v2.13.1 for Go 1.27 support
+
 ## v0.6.1
 
 - update Go to 1.26.6 and update dependencies, clearing stdlib vulns GO-2026-5026, GO-2026-5942, GO-2026-5972, GO-2026-6088, GO-2026-6089, GO-2026-6090, GO-2026-6091, GO-2026-6218 and fixing golang.org/x/mod CVEs CVE-2026-56864 and CVE-2026-56865
