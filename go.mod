@@ -1,10 +1,10 @@
 module github.com/bborbe/distill
 
-go 1.26.6
+go 1.27.0
 
 require (
-	github.com/bborbe/errors v1.5.17
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/bborbe/errors v1.5.20
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
