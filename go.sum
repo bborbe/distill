@@ -1,7 +1,7 @@
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
-github.com/bborbe/errors v1.5.20 h1:a2BSktmZj1/QIi07ovo1uosh9ym+ArguhcK/Z8IoCA4=
-github.com/bborbe/errors v1.5.20/go.mod h1:q0hIE5+qt9cTgxCAyZzAozQ6JvClasmy1ghG2Wtirpo=
+github.com/bborbe/errors v1.6.0 h1:gUE7PJpabcOBqgBxhJO5zPyTnbV651qxSoFiTPZMdBE=
+github.com/bborbe/errors v1.6.0/go.mod h1:NL1wqDWqHS08eGme6uL963guOSUlGpmyw+7C0RSfMPo=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
