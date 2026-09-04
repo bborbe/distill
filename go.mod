@@ -1,6 +1,6 @@
 module github.com/bborbe/distill
 
-go 1.27.0
+go 1.27.1
 
 require (
 	github.com/bborbe/errors v1.6.0
