@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.8.0
 
 - feat: add .reviewignore for the PR size gate
 
