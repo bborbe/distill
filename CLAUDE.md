@@ -12,10 +12,10 @@
 
 1. Create spec → `/dark-factory:create-spec`
 2. Audit spec → `/dark-factory:audit-spec`
-3. User confirms → `dark-factory spec approve <name>`
+3. Approve the spec → `dark-factory spec approve <name>`
 4. dark-factory auto-generates prompts from spec (`autoGeneratePrompts: true` in `.dark-factory.yaml`)
 5. Audit prompts → `/dark-factory:audit-prompt`
-6. User confirms → `dark-factory prompt approve <name>`
+6. Approve the prompt → `dark-factory prompt approve <name>`
 7. Start daemon → `dark-factory daemon` (use Bash `run_in_background: true`)
 8. dark-factory executes prompts automatically
 
@@ -23,7 +23,7 @@
 
 1. Create prompt → `/dark-factory:create-prompt`
 2. Audit prompt → `/dark-factory:audit-prompt`
-3. User confirms → `dark-factory prompt approve <name>`
+3. Approve the prompt → `dark-factory prompt approve <name>`
 4. Start daemon → `dark-factory daemon` (use Bash `run_in_background: true`)
 
 ### Choosing a Flow
@@ -42,7 +42,7 @@
 - Never number filenames — dark-factory assigns numbers on approve
 - Never manually edit frontmatter status — use CLI commands
 - Always audit before approving
-- **BLOCKING: Never run `dark-factory spec approve`, `dark-factory prompt approve`, or `dark-factory daemon` without explicit user confirmation.**
+- Run `dark-factory prompt approve` / `dark-factory spec approve` yourself once the prompt/spec passed its auditor (global rule execution-phase-no-reask)
 - **Before starting daemon** — run `dark-factory status` first to check if one is already running.
 - **Start daemon in background** — Bash `run_in_background: true` (not detached with `&`)
 
