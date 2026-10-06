@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.8.1
 
 - docs: Remove the dark-factory approval gate from this repo's `CLAUDE.md`. It contradicted the global `execution-phase-no-reask` carve-out and would have stopped every spec and prompt approval.
 
