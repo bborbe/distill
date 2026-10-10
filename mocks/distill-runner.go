@@ -11,13 +11,8 @@ import (
 type DistillRunner struct {
 	RunStub        func(context.Context, string, string, string) (string, error)
 	runMutex       sync.RWMutex
-	runArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}
-	runReturns struct {
+	runArgsForCall []DistillRunnerRunArgs
+	runReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -26,18 +21,22 @@ type DistillRunner struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// DistillRunnerRunArgs holds the arguments of one call to Run.
+type DistillRunnerRunArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 string
 }
 
 func (fake *DistillRunner) Run(arg1 context.Context, arg2 string, arg3 string, arg4 string) (string, error) {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
-	fake.runArgsForCall = append(fake.runArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}{arg1, arg2, arg3, arg4})
+	fake.runArgsForCall = append(fake.runArgsForCall, DistillRunnerRunArgs{arg1, arg2, arg3, arg4})
 	stub := fake.RunStub
 	fakeReturns := fake.runReturns
 	fake.recordInvocation("Run", []interface{}{arg1, arg2, arg3, arg4})
@@ -67,7 +66,15 @@ func (fake *DistillRunner) RunArgsForCall(i int) (context.Context, string, strin
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *DistillRunner) RunArgs() []DistillRunnerRunArgs {
+	fake.runMutex.RLock()
+	defer fake.runMutex.RUnlock()
+	args := make([]DistillRunnerRunArgs, len(fake.runArgsForCall))
+	copy(args, fake.runArgsForCall)
+	return args
 }
 
 func (fake *DistillRunner) RunReturns(result1 string, result2 error) {
@@ -106,9 +113,18 @@ func (fake *DistillRunner) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *DistillRunner) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *DistillRunner) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

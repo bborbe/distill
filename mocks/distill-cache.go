@@ -11,11 +11,8 @@ import (
 type DistillCache struct {
 	GetStub        func(string, string) (string, bool)
 	getMutex       sync.RWMutex
-	getArgsForCall []struct {
-		arg1 string
-		arg2 string
-	}
-	getReturns struct {
+	getArgsForCall []DistillCacheGetArgs
+	getReturns     struct {
 		result1 string
 		result2 bool
 	}
@@ -25,29 +22,20 @@ type DistillCache struct {
 	}
 	LoadStub        func(context.Context) error
 	loadMutex       sync.RWMutex
-	loadArgsForCall []struct {
-		arg1 context.Context
-	}
-	loadReturns struct {
+	loadArgsForCall []DistillCacheLoadArgs
+	loadReturns     struct {
 		result1 error
 	}
 	loadReturnsOnCall map[int]struct {
 		result1 error
 	}
-	PutStub        func(string, string, string)
-	putMutex       sync.RWMutex
-	putArgsForCall []struct {
-		arg1 string
-		arg2 string
-		arg3 string
-	}
+	PutStub             func(string, string, string)
+	putMutex            sync.RWMutex
+	putArgsForCall      []DistillCachePutArgs
 	RuleHashStub        func(string, string) string
 	ruleHashMutex       sync.RWMutex
-	ruleHashArgsForCall []struct {
-		arg1 string
-		arg2 string
-	}
-	ruleHashReturns struct {
+	ruleHashArgsForCall []DistillCacheRuleHashArgs
+	ruleHashReturns     struct {
 		result1 string
 	}
 	ruleHashReturnsOnCall map[int]struct {
@@ -55,11 +43,8 @@ type DistillCache struct {
 	}
 	SaveStub        func(context.Context, []string) error
 	saveMutex       sync.RWMutex
-	saveArgsForCall []struct {
-		arg1 context.Context
-		arg2 []string
-	}
-	saveReturns struct {
+	saveArgsForCall []DistillCacheSaveArgs
+	saveReturns     struct {
 		result1 error
 	}
 	saveReturnsOnCall map[int]struct {
@@ -67,26 +52,57 @@ type DistillCache struct {
 	}
 	SaveMergedStub        func(context.Context) error
 	saveMergedMutex       sync.RWMutex
-	saveMergedArgsForCall []struct {
-		arg1 context.Context
-	}
-	saveMergedReturns struct {
+	saveMergedArgsForCall []DistillCacheSaveMergedArgs
+	saveMergedReturns     struct {
 		result1 error
 	}
 	saveMergedReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// DistillCacheGetArgs holds the arguments of one call to Get.
+type DistillCacheGetArgs struct {
+	Arg1 string
+	Arg2 string
+}
+
+// DistillCacheLoadArgs holds the arguments of one call to Load.
+type DistillCacheLoadArgs struct {
+	Arg1 context.Context
+}
+
+// DistillCachePutArgs holds the arguments of one call to Put.
+type DistillCachePutArgs struct {
+	Arg1 string
+	Arg2 string
+	Arg3 string
+}
+
+// DistillCacheRuleHashArgs holds the arguments of one call to RuleHash.
+type DistillCacheRuleHashArgs struct {
+	Arg1 string
+	Arg2 string
+}
+
+// DistillCacheSaveArgs holds the arguments of one call to Save.
+type DistillCacheSaveArgs struct {
+	Arg1 context.Context
+	Arg2 []string
+}
+
+// DistillCacheSaveMergedArgs holds the arguments of one call to SaveMerged.
+type DistillCacheSaveMergedArgs struct {
+	Arg1 context.Context
 }
 
 func (fake *DistillCache) Get(arg1 string, arg2 string) (string, bool) {
 	fake.getMutex.Lock()
 	ret, specificReturn := fake.getReturnsOnCall[len(fake.getArgsForCall)]
-	fake.getArgsForCall = append(fake.getArgsForCall, struct {
-		arg1 string
-		arg2 string
-	}{arg1, arg2})
+	fake.getArgsForCall = append(fake.getArgsForCall, DistillCacheGetArgs{arg1, arg2})
 	stub := fake.GetStub
 	fakeReturns := fake.getReturns
 	fake.recordInvocation("Get", []interface{}{arg1, arg2})
@@ -116,7 +132,15 @@ func (fake *DistillCache) GetArgsForCall(i int) (string, string) {
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	argsForCall := fake.getArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *DistillCache) GetArgs() []DistillCacheGetArgs {
+	fake.getMutex.RLock()
+	defer fake.getMutex.RUnlock()
+	args := make([]DistillCacheGetArgs, len(fake.getArgsForCall))
+	copy(args, fake.getArgsForCall)
+	return args
 }
 
 func (fake *DistillCache) GetReturns(result1 string, result2 bool) {
@@ -148,9 +172,7 @@ func (fake *DistillCache) GetReturnsOnCall(i int, result1 string, result2 bool) 
 func (fake *DistillCache) Load(arg1 context.Context) error {
 	fake.loadMutex.Lock()
 	ret, specificReturn := fake.loadReturnsOnCall[len(fake.loadArgsForCall)]
-	fake.loadArgsForCall = append(fake.loadArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.loadArgsForCall = append(fake.loadArgsForCall, DistillCacheLoadArgs{arg1})
 	stub := fake.LoadStub
 	fakeReturns := fake.loadReturns
 	fake.recordInvocation("Load", []interface{}{arg1})
@@ -180,7 +202,15 @@ func (fake *DistillCache) LoadArgsForCall(i int) context.Context {
 	fake.loadMutex.RLock()
 	defer fake.loadMutex.RUnlock()
 	argsForCall := fake.loadArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *DistillCache) LoadArgs() []DistillCacheLoadArgs {
+	fake.loadMutex.RLock()
+	defer fake.loadMutex.RUnlock()
+	args := make([]DistillCacheLoadArgs, len(fake.loadArgsForCall))
+	copy(args, fake.loadArgsForCall)
+	return args
 }
 
 func (fake *DistillCache) LoadReturns(result1 error) {
@@ -208,16 +238,12 @@ func (fake *DistillCache) LoadReturnsOnCall(i int, result1 error) {
 
 func (fake *DistillCache) Put(arg1 string, arg2 string, arg3 string) {
 	fake.putMutex.Lock()
-	fake.putArgsForCall = append(fake.putArgsForCall, struct {
-		arg1 string
-		arg2 string
-		arg3 string
-	}{arg1, arg2, arg3})
+	fake.putArgsForCall = append(fake.putArgsForCall, DistillCachePutArgs{arg1, arg2, arg3})
 	stub := fake.PutStub
 	fake.recordInvocation("Put", []interface{}{arg1, arg2, arg3})
 	fake.putMutex.Unlock()
 	if stub != nil {
-		fake.PutStub(arg1, arg2, arg3)
+		stub(arg1, arg2, arg3)
 	}
 }
 
@@ -237,16 +263,21 @@ func (fake *DistillCache) PutArgsForCall(i int) (string, string, string) {
 	fake.putMutex.RLock()
 	defer fake.putMutex.RUnlock()
 	argsForCall := fake.putArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *DistillCache) PutArgs() []DistillCachePutArgs {
+	fake.putMutex.RLock()
+	defer fake.putMutex.RUnlock()
+	args := make([]DistillCachePutArgs, len(fake.putArgsForCall))
+	copy(args, fake.putArgsForCall)
+	return args
 }
 
 func (fake *DistillCache) RuleHash(arg1 string, arg2 string) string {
 	fake.ruleHashMutex.Lock()
 	ret, specificReturn := fake.ruleHashReturnsOnCall[len(fake.ruleHashArgsForCall)]
-	fake.ruleHashArgsForCall = append(fake.ruleHashArgsForCall, struct {
-		arg1 string
-		arg2 string
-	}{arg1, arg2})
+	fake.ruleHashArgsForCall = append(fake.ruleHashArgsForCall, DistillCacheRuleHashArgs{arg1, arg2})
 	stub := fake.RuleHashStub
 	fakeReturns := fake.ruleHashReturns
 	fake.recordInvocation("RuleHash", []interface{}{arg1, arg2})
@@ -276,7 +307,15 @@ func (fake *DistillCache) RuleHashArgsForCall(i int) (string, string) {
 	fake.ruleHashMutex.RLock()
 	defer fake.ruleHashMutex.RUnlock()
 	argsForCall := fake.ruleHashArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *DistillCache) RuleHashArgs() []DistillCacheRuleHashArgs {
+	fake.ruleHashMutex.RLock()
+	defer fake.ruleHashMutex.RUnlock()
+	args := make([]DistillCacheRuleHashArgs, len(fake.ruleHashArgsForCall))
+	copy(args, fake.ruleHashArgsForCall)
+	return args
 }
 
 func (fake *DistillCache) RuleHashReturns(result1 string) {
@@ -310,10 +349,7 @@ func (fake *DistillCache) Save(arg1 context.Context, arg2 []string) error {
 	}
 	fake.saveMutex.Lock()
 	ret, specificReturn := fake.saveReturnsOnCall[len(fake.saveArgsForCall)]
-	fake.saveArgsForCall = append(fake.saveArgsForCall, struct {
-		arg1 context.Context
-		arg2 []string
-	}{arg1, arg2Copy})
+	fake.saveArgsForCall = append(fake.saveArgsForCall, DistillCacheSaveArgs{arg1, arg2Copy})
 	stub := fake.SaveStub
 	fakeReturns := fake.saveReturns
 	fake.recordInvocation("Save", []interface{}{arg1, arg2Copy})
@@ -343,7 +379,15 @@ func (fake *DistillCache) SaveArgsForCall(i int) (context.Context, []string) {
 	fake.saveMutex.RLock()
 	defer fake.saveMutex.RUnlock()
 	argsForCall := fake.saveArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *DistillCache) SaveArgs() []DistillCacheSaveArgs {
+	fake.saveMutex.RLock()
+	defer fake.saveMutex.RUnlock()
+	args := make([]DistillCacheSaveArgs, len(fake.saveArgsForCall))
+	copy(args, fake.saveArgsForCall)
+	return args
 }
 
 func (fake *DistillCache) SaveReturns(result1 error) {
@@ -372,9 +416,7 @@ func (fake *DistillCache) SaveReturnsOnCall(i int, result1 error) {
 func (fake *DistillCache) SaveMerged(arg1 context.Context) error {
 	fake.saveMergedMutex.Lock()
 	ret, specificReturn := fake.saveMergedReturnsOnCall[len(fake.saveMergedArgsForCall)]
-	fake.saveMergedArgsForCall = append(fake.saveMergedArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.saveMergedArgsForCall = append(fake.saveMergedArgsForCall, DistillCacheSaveMergedArgs{arg1})
 	stub := fake.SaveMergedStub
 	fakeReturns := fake.saveMergedReturns
 	fake.recordInvocation("SaveMerged", []interface{}{arg1})
@@ -404,7 +446,15 @@ func (fake *DistillCache) SaveMergedArgsForCall(i int) context.Context {
 	fake.saveMergedMutex.RLock()
 	defer fake.saveMergedMutex.RUnlock()
 	argsForCall := fake.saveMergedArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *DistillCache) SaveMergedArgs() []DistillCacheSaveMergedArgs {
+	fake.saveMergedMutex.RLock()
+	defer fake.saveMergedMutex.RUnlock()
+	args := make([]DistillCacheSaveMergedArgs, len(fake.saveMergedArgsForCall))
+	copy(args, fake.saveMergedArgsForCall)
+	return args
 }
 
 func (fake *DistillCache) SaveMergedReturns(result1 error) {
@@ -440,9 +490,18 @@ func (fake *DistillCache) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *DistillCache) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *DistillCache) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -11,11 +11,8 @@ import (
 type DistillParser struct {
 	ParseStub        func(context.Context, string) ([]distill.Rule, error)
 	parseMutex       sync.RWMutex
-	parseArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	parseReturns struct {
+	parseArgsForCall []DistillParserParseArgs
+	parseReturns     struct {
 		result1 []distill.Rule
 		result2 error
 	}
@@ -24,16 +21,20 @@ type DistillParser struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// DistillParserParseArgs holds the arguments of one call to Parse.
+type DistillParserParseArgs struct {
+	Arg1 context.Context
+	Arg2 string
 }
 
 func (fake *DistillParser) Parse(arg1 context.Context, arg2 string) ([]distill.Rule, error) {
 	fake.parseMutex.Lock()
 	ret, specificReturn := fake.parseReturnsOnCall[len(fake.parseArgsForCall)]
-	fake.parseArgsForCall = append(fake.parseArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.parseArgsForCall = append(fake.parseArgsForCall, DistillParserParseArgs{arg1, arg2})
 	stub := fake.ParseStub
 	fakeReturns := fake.parseReturns
 	fake.recordInvocation("Parse", []interface{}{arg1, arg2})
@@ -63,7 +64,15 @@ func (fake *DistillParser) ParseArgsForCall(i int) (context.Context, string) {
 	fake.parseMutex.RLock()
 	defer fake.parseMutex.RUnlock()
 	argsForCall := fake.parseArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *DistillParser) ParseArgs() []DistillParserParseArgs {
+	fake.parseMutex.RLock()
+	defer fake.parseMutex.RUnlock()
+	args := make([]DistillParserParseArgs, len(fake.parseArgsForCall))
+	copy(args, fake.parseArgsForCall)
+	return args
 }
 
 func (fake *DistillParser) ParseReturns(result1 []distill.Rule, result2 error) {
@@ -102,9 +111,18 @@ func (fake *DistillParser) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *DistillParser) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *DistillParser) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
