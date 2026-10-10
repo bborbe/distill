@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.8.2
 
 - chore: update Go to 1.27.2 and github.com/bborbe/errors to v1.6.1, github.com/onsi/gomega to v1.43.1
 
