@@ -11,29 +11,29 @@ import (
 type DistillWriter struct {
 	WriteStub        func(context.Context, string, string) error
 	writeMutex       sync.RWMutex
-	writeArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-	}
-	writeReturns struct {
+	writeArgsForCall []DistillWriterWriteArgs
+	writeReturns     struct {
 		result1 error
 	}
 	writeReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// DistillWriterWriteArgs holds the arguments of one call to Write.
+type DistillWriterWriteArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
 }
 
 func (fake *DistillWriter) Write(arg1 context.Context, arg2 string, arg3 string) error {
 	fake.writeMutex.Lock()
 	ret, specificReturn := fake.writeReturnsOnCall[len(fake.writeArgsForCall)]
-	fake.writeArgsForCall = append(fake.writeArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-	}{arg1, arg2, arg3})
+	fake.writeArgsForCall = append(fake.writeArgsForCall, DistillWriterWriteArgs{arg1, arg2, arg3})
 	stub := fake.WriteStub
 	fakeReturns := fake.writeReturns
 	fake.recordInvocation("Write", []interface{}{arg1, arg2, arg3})
@@ -63,7 +63,15 @@ func (fake *DistillWriter) WriteArgsForCall(i int) (context.Context, string, str
 	fake.writeMutex.RLock()
 	defer fake.writeMutex.RUnlock()
 	argsForCall := fake.writeArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *DistillWriter) WriteArgs() []DistillWriterWriteArgs {
+	fake.writeMutex.RLock()
+	defer fake.writeMutex.RUnlock()
+	args := make([]DistillWriterWriteArgs, len(fake.writeArgsForCall))
+	copy(args, fake.writeArgsForCall)
+	return args
 }
 
 func (fake *DistillWriter) WriteReturns(result1 error) {
@@ -99,9 +107,18 @@ func (fake *DistillWriter) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *DistillWriter) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *DistillWriter) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
