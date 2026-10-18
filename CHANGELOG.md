@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.9.0
 
 - feat: revise a changed rule from its previous rendering instead of re-deriving it. A one-sentence rule edit now produces a small diff inside that rule's bullet rather than rewording the whole block (measured 52 → 8 changed lines on the 71-rule corpus). `Cache.GetPrevious` supplies the prior bullet, `BuildBatchPrompt` fences it as `<previous>` with a minimal-edit instruction, `system.md` gains a "Revising a previous rendering" contract, and `cachePromptVersion` bumps to v4 (one cold run).
 
