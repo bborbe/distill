@@ -121,7 +121,7 @@ func (d *Driver) compileBullets(ctx context.Context, rules []Rule) (map[string]s
 		batchSize = 15
 	}
 
-	failingIDs, compiledCount, chunkCount, err := d.compileChunks(
+	failingIDs, _, compiledCount, chunkCount, err := d.compileChunks(
 		ctx,
 		misses,
 		previousByID,
@@ -144,19 +144,28 @@ func (d *Driver) compileBullets(ctx context.Context, rules []Rule) (map[string]s
 				retryRules = append(retryRules, r)
 			}
 		}
-		stillFailing, _, _, retryErr := d.compileChunks(
+		// Retry one rule per prompt. Re-batching the failures at batchSize
+		// reproduces the same multi-bullet emission that failed validation, so
+		// the retry would fail the same way and abort the whole run.
+		stillFailing, stillMissing, _, _, retryErr := d.compileChunks(
 			ctx,
 			retryRules,
 			previousByID,
 			bulletByID,
-			batchSize,
+			1,
 		)
 		if retryErr != nil {
 			return nil, retryErr
 		}
-		if len(stillFailing) > 0 {
-			return nil, errors.Errorf(ctx, "unresolved rule ids after retry: %v", stillFailing)
+		// A MISSING bullet means the model returned no delimiter for that id —
+		// the hijack/refusal path, where writing the output would be unsafe.
+		// Keep that fatal. A bullet that came back but failed validation is a
+		// compression-shape problem in one rule file; warn and carry on so two
+		// broken rules cannot block regeneration of the whole corpus.
+		if len(stillMissing) > 0 {
+			return nil, errors.Errorf(ctx, "unresolved rule ids after retry: %v", stillMissing)
 		}
+		d.keepOrSkip(stillFailing, previousByID, bulletByID)
 	}
 
 	fmt.Fprintf(d.Stderr, "distill: %d cached, %d compiled (%d chunks), %d retried\n",
@@ -192,12 +201,12 @@ func (d *Driver) compileChunks(
 	previousByID map[string]string,
 	bulletByID map[string]string,
 	batchSize int,
-) (failingIDs []string, compiled int, chunks int, err error) {
+) (failingIDs []string, missingIDs []string, compiled int, chunks int, err error) {
 	for i := 0; i < len(rules); i += batchSize {
 		// Non-blocking context cancellation check between chunks.
 		select {
 		case <-ctx.Done():
-			return nil, 0, 0, errors.Wrapf(ctx, ctx.Err(), "cancelled")
+			return nil, nil, 0, 0, errors.Wrapf(ctx, ctx.Err(), "cancelled")
 		default:
 		}
 
@@ -221,12 +230,17 @@ func (d *Driver) compileChunks(
 
 		prompt, buildErr := BuildBatchPrompt(ctx, bodies)
 		if buildErr != nil {
-			return nil, 0, chunks, buildErr
+			return nil, nil, 0, chunks, buildErr
 		}
 
 		resp, runErr := d.Runner.Run(ctx, d.Model, SystemPrompt(), prompt)
 		if runErr != nil {
-			return nil, 0, chunks, errors.Wrapf(ctx, runErr, "claude run chunk ids=%v", chunkIDs)
+			return nil, nil, 0, chunks, errors.Wrapf(
+				ctx,
+				runErr,
+				"claude run chunk ids=%v",
+				chunkIDs,
+			)
 		}
 
 		bullets, warnings, _ := ParseBatchResponse(resp, chunkIDs)
@@ -234,11 +248,36 @@ func (d *Driver) compileChunks(
 			fmt.Fprintf(d.Stderr, "distill: warning: %s\n", w)
 		}
 
-		chunkFailing, chunkCompiled := d.processChunkResults(ctx, chunk, bullets, bulletByID)
+		chunkFailing, chunkMissing, chunkCompiled := d.processChunkResults(
+			ctx, chunk, bullets, bulletByID,
+		)
 		failingIDs = append(failingIDs, chunkFailing...)
+		missingIDs = append(missingIDs, chunkMissing...)
 		compiled += chunkCompiled
 	}
-	return failingIDs, compiled, chunks, nil
+	return failingIDs, missingIDs, compiled, chunks, nil
+}
+
+// keepOrSkip handles rules whose bullet came back malformed on both attempts.
+// A rule with a cached previous rendering keeps it; one without is left out of
+// the output. Either way the id is named on stderr.
+func (d *Driver) keepOrSkip(ids []string, previousByID, bulletByID map[string]string) {
+	for _, id := range ids {
+		if prev, ok := previousByID[id]; ok {
+			bulletByID[id] = prev
+			fmt.Fprintf(
+				d.Stderr,
+				"distill: warning: rule id=%q failed validation after retry — kept its previous rendering\n",
+				id,
+			)
+			continue
+		}
+		fmt.Fprintf(
+			d.Stderr,
+			"distill: warning: rule id=%q failed validation after retry — omitted from the output\n",
+			id,
+		)
+	}
 }
 
 // processChunkResults validates each bullet returned for a chunk and records
@@ -248,11 +287,12 @@ func (d *Driver) processChunkResults(
 	chunk []Rule,
 	bullets map[string]string,
 	bulletByID map[string]string,
-) (failingIDs []string, compiled int) {
+) (failingIDs []string, missingIDs []string, compiled int) {
 	for _, r := range chunk {
 		bullet, found := bullets[r.ID]
 		if !found {
 			failingIDs = append(failingIDs, r.ID)
+			missingIDs = append(missingIDs, r.ID)
 			continue
 		}
 		if validateErr := ValidateBullet(ctx, r.ID, bullet); validateErr != nil {

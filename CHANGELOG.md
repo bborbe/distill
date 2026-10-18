@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- fix: a rule that still fails validation after the scoped retry no longer aborts the whole run. The retry now sends one rule per prompt — re-batching up to 15 failures reproduced the same multi-bullet emission, so the retry failed the same way — and a bullet that comes back malformed is skipped with its id named, keeping its previous rendering when the cache has one. A **missing** bullet stays fatal, preserving the hijack/refusal guard. On a 70-rule corpus this turned a hard failure with 8 unresolved ids into a clean exit 0.
+
 ## v0.9.0
 
 - feat: revise a changed rule from its previous rendering instead of re-deriving it. A one-sentence rule edit now produces a small diff inside that rule's bullet rather than rewording the whole block (measured 52 → 8 changed lines on the 71-rule corpus). `Cache.GetPrevious` supplies the prior bullet, `BuildBatchPrompt` fences it as `<previous>` with a minimal-edit instruction, `system.md` gains a "Revising a previous rendering" contract, and `cachePromptVersion` bumps to v4 (one cold run).
