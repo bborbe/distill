@@ -408,6 +408,91 @@ var _ = Describe("Driver", func() {
 		Expect(got).To(ContainSubstring("- **R2.** body r2"))
 	})
 
+	It("retries each failing rule in its own prompt", func() {
+		writeSource("r1.md", "---\ndistill:\n  section: Git\n  id: r1\n  order: 10\n---\nbody r1\n")
+		writeSource("r2.md", "---\ndistill:\n  section: Git\n  id: r2\n  order: 20\n---\nbody r2\n")
+
+		stub := &mocks.DistillRunner{}
+		// First call: both rules come back as multi-bullet output, which fails
+		// ValidateBullet's "exactly 1 top-level list item" contract.
+		stub.RunReturnsOnCall(
+			0,
+			"--- bullet id=r1 ---\n- **R1.** a\n- **R1b.** b\n"+
+				"--- bullet id=r2 ---\n- **R2.** a\n- **R2b.** b\n",
+			nil,
+		)
+		// Retry calls: one rule each, valid.
+		stub.RunReturnsOnCall(1, "--- bullet id=r1 ---\n- **R1.** body r1\n", nil)
+		stub.RunReturnsOnCall(2, "--- bullet id=r2 ---\n- **R2.** body r2\n", nil)
+
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		Expect(stub.RunCallCount()).To(Equal(3))
+
+		// Each retry prompt carries exactly one rule — re-batching the failures
+		// reproduces the same multi-bullet emission and aborts the run.
+		_, _, _, retry1 := stub.RunArgsForCall(1)
+		_, _, _, retry2 := stub.RunArgsForCall(2)
+		Expect(strings.Count(retry1, `<rule id="`)).To(Equal(1))
+		Expect(strings.Count(retry2, `<rule id="`)).To(Equal(1))
+
+		got := readOutput()
+		Expect(got).To(ContainSubstring("- **R1.** body r1"))
+		Expect(got).To(ContainSubstring("- **R2.** body r2"))
+	})
+
+	It("skips a rule that still fails validation after the retry and keeps the run green", func() {
+		writeSource(
+			"bad.md",
+			"---\ndistill:\n  section: Git\n  id: bad\n  order: 10\n---\nbody bad\n",
+		)
+		writeSource(
+			"good.md",
+			"---\ndistill:\n  section: Git\n  id: good\n  order: 20\n---\nbody good\n",
+		)
+
+		stub := &mocks.DistillRunner{}
+		stub.RunStub = func(_ context.Context, _ string, _ string, prompt string) (string, error) {
+			var sb strings.Builder
+			if strings.Contains(prompt, `id="bad"`) {
+				sb.WriteString("--- bullet id=bad ---\n- **Bad.** one\n- **Bad2.** two\n")
+			}
+			if strings.Contains(prompt, `id="good"`) {
+				sb.WriteString("--- bullet id=good ---\n- **Good.** ok\n")
+			}
+			return sb.String(), nil
+		}
+
+		var stderrBuf bytes.Buffer
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    &stderrBuf,
+			NoCache:   true,
+			BatchSize: 100,
+			Cache:     alwaysMissCache(),
+		}
+
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+		got := readOutput()
+		Expect(got).NotTo(ContainSubstring("**Bad.**"))
+		Expect(got).To(ContainSubstring("- **Good.** ok"))
+		Expect(
+			stderrBuf.String(),
+		).To(ContainSubstring(`rule id="bad" failed validation after retry`))
+	})
+
 	It("prints a summary line to stderr", func() {
 		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
 		stub := stubRunnerWith(nil)
