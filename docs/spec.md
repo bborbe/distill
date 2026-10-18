@@ -193,7 +193,10 @@ Each bullet returned by the model is validated per-id before it is accepted:
 
 **Zero-delimiter response:** a model response containing no `--- bullet id= ---` delimiters at all (the classic hijack / refusal shape) fails the entire chunk immediately, with no bullets extracted.
 
-**Retry:** missing or invalid ids from a chunk are retried exactly once in a call scoped to only those ids. If any id is still unresolved after the retry, the run exits non-zero naming the unresolved ids; the output file is never touched (the atomic writer runs only after every enabled rule id has a validated bullet).
+**Retry:** missing or invalid ids from a chunk are retried exactly once, **one rule per prompt** — re-batching the failures reproduces the same multi-bullet emission that failed validation. The two failure shapes then diverge:
+
+- A **missing** id (the model returned no delimiter for it) that survives the retry is fatal: the run exits non-zero naming the unresolved ids and the output file is never touched. That is the hijack / refusal shape, and writing the output would be unsafe.
+- An id whose bullet came back but **failed validation** is skipped with a warning instead of aborting: it keeps its previous rendering when the cache has one, and is omitted from the output otherwise. A couple of broken rule files therefore cannot block regeneration of the whole corpus.
 
 **Unknown ids:** bullets addressed to ids not in the request are warned to stderr and ignored.
 
@@ -210,6 +213,8 @@ distill: N cached, M compiled (K chunks), R retried
 | Source file has `distill:` but missing `section:` | Exit 1; stderr names the source file. |
 | Two source files share identical `(section, order, id)` | Exit 1; stderr names both source files. |
 | Rule body contains literal `</rule>` | Exit 1; stderr names the source file; no LLM call made. |
+| A rule's bullet still fails validation after the per-rule retry | Warned to stderr by id; previous rendering kept when cached, otherwise omitted from the output; run exits 0. |
+| A rule's bullet is missing after the per-rule retry | Exit 1 naming the unresolved ids; output untouched (hijack / refusal guard). |
 | `claude` CLI exits non-zero | Exit 1; stderr names the section + tail of Claude's stderr. |
 | `claude` CLI not on `$PATH` | Exit 1; stderr names the binary. |
 | Source folder missing / unreadable | Exit 1; stderr names the path. |
