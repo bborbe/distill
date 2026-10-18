@@ -147,6 +147,59 @@ var _ = Describe("Driver", func() {
 		Expect(got).NotTo(ContainSubstring("\n# "))
 	})
 
+	It("passes a missed rule's previous cached bullet into the prompt", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nchanged body\n")
+		stub := stubRunnerWith(map[string]string{"a": "- **A.** revised"})
+		cache := &mocks.DistillCache{}
+		cache.RuleHashStub = func(model, body string) string { return "hash-" + body }
+		cache.GetStub = func(id, hash string) (string, bool) { return "", false }
+		cache.GetPreviousStub = func(id string) (string, bool) {
+			if id == "a" {
+				return "- **A.** previous wording", true
+			}
+			return "", false
+		}
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			BatchSize: 100,
+			Cache:     cache,
+		}
+
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+		prompts := promptsSeen(stub)
+		Expect(prompts).To(HaveLen(1))
+		Expect(
+			prompts[0],
+		).To(ContainSubstring("<previous>\n- **A.** previous wording\n</previous>"))
+	})
+
+	It("omits <previous> when the cache holds no prior bullet for a missed rule", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		stub := stubRunnerWith(map[string]string{"a": "- **A.** one"})
+		cache := &mocks.DistillCache{}
+		cache.RuleHashStub = func(model, body string) string { return "hash-" + body }
+		cache.GetStub = func(id, hash string) (string, bool) { return "", false }
+		cache.GetPreviousStub = func(id string) (string, bool) { return "", false }
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    GinkgoWriter,
+			BatchSize: 100,
+			Cache:     cache,
+		}
+
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+		prompts := promptsSeen(stub)
+		Expect(prompts).To(HaveLen(1))
+		Expect(prompts[0]).NotTo(ContainSubstring("<previous>"))
+	})
+
 	It("groups rules into one prompt per chunk in (order, id) order", func() {
 		writeSource(
 			"late.md",

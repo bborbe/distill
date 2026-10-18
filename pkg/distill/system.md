@@ -208,6 +208,16 @@ Good:
 
 The negative is named first; the corrective action follows.
 
+# Revising a previous rendering
+
+When a `<previous>` block accompanies a rule, it is that rule's last validated bullet. Revise it minimally:
+
+- Preserve its wording, ordering, line breaks and structure exactly.
+- Change only what the updated rule body requires. An unchanged sentence stays byte-identical.
+- Return the whole revised bullet, never a diff, a patch, or a description of what changed.
+
+Re-deriving the bullet from the source is wrong when a previous rendering exists: it rewords sentences the edit never touched, turning a one-sentence change into a large unreviewable diff.
+
 # Output format
 
 For each input `<rule id="X">`, emit exactly one block of the form:

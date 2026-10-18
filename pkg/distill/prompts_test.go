@@ -87,6 +87,38 @@ var _ = Describe("BuildBatchPrompt", func() {
 		Expect(prompt).To(ContainSubstring("</rules>"))
 	})
 
+	It("emits a <previous> block when a previous bullet is supplied", func() {
+		bodies := []distill.RuleBody{
+			{ID: "alpha", Body: "new body", Previous: "- **Alpha.** old wording"},
+		}
+		prompt, err := distill.BuildBatchPrompt(ctx, bodies)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(prompt).To(ContainSubstring("<previous>\n- **Alpha.** old wording\n</previous>"))
+		Expect(prompt).To(ContainSubstring("REVISE that previous bullet minimally"))
+	})
+
+	It("omits the revision instruction and <previous> when no rule has one", func() {
+		bodies := []distill.RuleBody{{ID: "x", Body: "body"}}
+		prompt, err := distill.BuildBatchPrompt(ctx, bodies)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(prompt).NotTo(ContainSubstring("<previous>"))
+		Expect(prompt).NotTo(ContainSubstring("REVISE that previous bullet minimally"))
+	})
+
+	It(
+		"returns an error naming the id when a previous bullet contains literal </previous>",
+		func() {
+			bodies := []distill.RuleBody{
+				{ID: "bad-prev", Body: "body", Previous: "has </previous> inside"},
+			}
+			prompt, err := distill.BuildBatchPrompt(ctx, bodies)
+			Expect(err).To(HaveOccurred())
+			Expect(prompt).To(BeEmpty())
+			Expect(err.Error()).To(ContainSubstring("bad-prev"))
+			Expect(err.Error()).To(ContainSubstring("</previous>"))
+		},
+	)
+
 	It("trims whitespace from each body", func() {
 		bodies := []distill.RuleBody{{ID: "x", Body: "  trimmed body  \n\n"}}
 		prompt, err := distill.BuildBatchPrompt(ctx, bodies)

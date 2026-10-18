@@ -24,6 +24,10 @@ import (
 type Cache interface {
 	// Get returns the cached bullet for id when the stored hash equals hash.
 	Get(id, hash string) (bullet string, ok bool)
+	// GetPrevious returns the last validated bullet for id regardless of its
+	// content hash, so a changed rule can be revised from its prior rendering
+	// instead of re-derived from scratch.
+	GetPrevious(id string) (bullet string, ok bool)
 	// Put records a validated bullet for id under hash (pending write).
 	Put(id, hash, bullet string)
 	// Save persists the cache, pruning to exactly keepIDs on a successful run.
@@ -40,7 +44,7 @@ type Cache interface {
 // cachePromptVersion bumps whenever the compression contract changes in a way
 // that must invalidate every cache entry. Increment on any system.md or output-
 // contract change.
-const cachePromptVersion = "v3"
+const cachePromptVersion = "v4"
 
 // cacheFile is the JSON schema persisted to disk.
 type cacheFile struct {
@@ -125,6 +129,17 @@ func (c *fileCache) Load(_ context.Context) error {
 func (c *fileCache) Get(id, hash string) (string, bool) {
 	e, ok := c.loaded[id]
 	if !ok || e.Hash != hash {
+		return "", false
+	}
+	return e.Bullet, true
+}
+
+// GetPrevious returns the last validated bullet for id regardless of its hash.
+// It reads only the loaded map: a bullet recorded during this run is already in
+// bulletByID and is never a revision source for another rule.
+func (c *fileCache) GetPrevious(id string) (string, bool) {
+	e, ok := c.loaded[id]
+	if !ok {
 		return "", false
 	}
 	return e.Bullet, true
@@ -218,6 +233,8 @@ type noopCache struct{}
 func (c *noopCache) RuleHash(model, body string) string { return RuleHash(model, body) }
 
 func (c *noopCache) Get(_, _ string) (string, bool) { return "", false }
+
+func (c *noopCache) GetPrevious(_ string) (string, bool) { return "", false }
 
 func (c *noopCache) Put(_, _, _ string) {}
 
