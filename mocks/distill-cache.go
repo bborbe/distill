@@ -20,6 +20,17 @@ type DistillCache struct {
 		result1 string
 		result2 bool
 	}
+	GetPreviousStub        func(string) (string, bool)
+	getPreviousMutex       sync.RWMutex
+	getPreviousArgsForCall []DistillCacheGetPreviousArgs
+	getPreviousReturns     struct {
+		result1 string
+		result2 bool
+	}
+	getPreviousReturnsOnCall map[int]struct {
+		result1 string
+		result2 bool
+	}
 	LoadStub        func(context.Context) error
 	loadMutex       sync.RWMutex
 	loadArgsForCall []DistillCacheLoadArgs
@@ -68,6 +79,11 @@ type DistillCache struct {
 type DistillCacheGetArgs struct {
 	Arg1 string
 	Arg2 string
+}
+
+// DistillCacheGetPreviousArgs holds the arguments of one call to GetPrevious.
+type DistillCacheGetPreviousArgs struct {
+	Arg1 string
 }
 
 // DistillCacheLoadArgs holds the arguments of one call to Load.
@@ -164,6 +180,76 @@ func (fake *DistillCache) GetReturnsOnCall(i int, result1 string, result2 bool) 
 		})
 	}
 	fake.getReturnsOnCall[i] = struct {
+		result1 string
+		result2 bool
+	}{result1, result2}
+}
+
+func (fake *DistillCache) GetPrevious(arg1 string) (string, bool) {
+	fake.getPreviousMutex.Lock()
+	ret, specificReturn := fake.getPreviousReturnsOnCall[len(fake.getPreviousArgsForCall)]
+	fake.getPreviousArgsForCall = append(fake.getPreviousArgsForCall, DistillCacheGetPreviousArgs{arg1})
+	stub := fake.GetPreviousStub
+	fakeReturns := fake.getPreviousReturns
+	fake.recordInvocation("GetPrevious", []interface{}{arg1})
+	fake.getPreviousMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *DistillCache) GetPreviousCallCount() int {
+	fake.getPreviousMutex.RLock()
+	defer fake.getPreviousMutex.RUnlock()
+	return len(fake.getPreviousArgsForCall)
+}
+
+func (fake *DistillCache) GetPreviousCalls(stub func(string) (string, bool)) {
+	fake.getPreviousMutex.Lock()
+	defer fake.getPreviousMutex.Unlock()
+	fake.GetPreviousStub = stub
+}
+
+func (fake *DistillCache) GetPreviousArgsForCall(i int) string {
+	fake.getPreviousMutex.RLock()
+	defer fake.getPreviousMutex.RUnlock()
+	argsForCall := fake.getPreviousArgsForCall[i]
+	return argsForCall.Arg1
+}
+
+func (fake *DistillCache) GetPreviousArgs() []DistillCacheGetPreviousArgs {
+	fake.getPreviousMutex.RLock()
+	defer fake.getPreviousMutex.RUnlock()
+	args := make([]DistillCacheGetPreviousArgs, len(fake.getPreviousArgsForCall))
+	copy(args, fake.getPreviousArgsForCall)
+	return args
+}
+
+func (fake *DistillCache) GetPreviousReturns(result1 string, result2 bool) {
+	fake.getPreviousMutex.Lock()
+	defer fake.getPreviousMutex.Unlock()
+	fake.GetPreviousStub = nil
+	fake.getPreviousReturns = struct {
+		result1 string
+		result2 bool
+	}{result1, result2}
+}
+
+func (fake *DistillCache) GetPreviousReturnsOnCall(i int, result1 string, result2 bool) {
+	fake.getPreviousMutex.Lock()
+	defer fake.getPreviousMutex.Unlock()
+	fake.GetPreviousStub = nil
+	if fake.getPreviousReturnsOnCall == nil {
+		fake.getPreviousReturnsOnCall = make(map[int]struct {
+			result1 string
+			result2 bool
+		})
+	}
+	fake.getPreviousReturnsOnCall[i] = struct {
 		result1 string
 		result2 bool
 	}{result1, result2}

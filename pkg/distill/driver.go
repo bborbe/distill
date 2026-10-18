@@ -114,6 +114,8 @@ func (d *Driver) compileBullets(ctx context.Context, rules []Rule) (map[string]s
 		misses = append(misses, r)
 	}
 
+	previousByID := d.previousBullets(misses)
+
 	batchSize := d.BatchSize
 	if batchSize <= 0 {
 		batchSize = 15
@@ -122,6 +124,7 @@ func (d *Driver) compileBullets(ctx context.Context, rules []Rule) (map[string]s
 	failingIDs, compiledCount, chunkCount, err := d.compileChunks(
 		ctx,
 		misses,
+		previousByID,
 		bulletByID,
 		batchSize,
 	)
@@ -141,7 +144,13 @@ func (d *Driver) compileBullets(ctx context.Context, rules []Rule) (map[string]s
 				retryRules = append(retryRules, r)
 			}
 		}
-		stillFailing, _, _, retryErr := d.compileChunks(ctx, retryRules, bulletByID, batchSize)
+		stillFailing, _, _, retryErr := d.compileChunks(
+			ctx,
+			retryRules,
+			previousByID,
+			bulletByID,
+			batchSize,
+		)
 		if retryErr != nil {
 			return nil, retryErr
 		}
@@ -156,12 +165,31 @@ func (d *Driver) compileBullets(ctx context.Context, rules []Rule) (map[string]s
 	return bulletByID, nil
 }
 
+// previousBullets returns each missed rule's last validated bullet keyed by id.
+// A miss means the rule body changed, but the cache still holds that rule's
+// prior bullet; passing it lets the model revise the previous rendering instead
+// of re-deriving the whole block, so a one-sentence edit does not reword every
+// line. Returns an empty map under --no-cache.
+func (d *Driver) previousBullets(misses []Rule) map[string]string {
+	previousByID := make(map[string]string, len(misses))
+	if d.NoCache {
+		return previousByID
+	}
+	for _, r := range misses {
+		if prev, ok := d.Cache.GetPrevious(r.ID); ok {
+			previousByID[r.ID] = prev
+		}
+	}
+	return previousByID
+}
+
 // compileChunks sends rules in batches of batchSize to the runner, validates
 // each returned bullet, and accumulates results into bulletByID. It returns
 // the ids that failed to produce a valid bullet, plus counts.
 func (d *Driver) compileChunks(
 	ctx context.Context,
 	rules []Rule,
+	previousByID map[string]string,
 	bulletByID map[string]string,
 	batchSize int,
 ) (failingIDs []string, compiled int, chunks int, err error) {
@@ -183,7 +211,11 @@ func (d *Driver) compileChunks(
 		bodies := make([]RuleBody, 0, len(chunk))
 		chunkIDs := make([]string, 0, len(chunk))
 		for _, r := range chunk {
-			bodies = append(bodies, RuleBody{ID: r.ID, Body: r.Body})
+			bodies = append(bodies, RuleBody{
+				ID:       r.ID,
+				Body:     r.Body,
+				Previous: previousByID[r.ID],
+			})
 			chunkIDs = append(chunkIDs, r.ID)
 		}
 
