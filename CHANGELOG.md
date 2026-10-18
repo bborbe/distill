@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.9.1
 
 - fix: a rule that still fails validation after the scoped retry no longer aborts the whole run. The retry now sends one rule per prompt — re-batching up to 15 failures reproduced the same multi-bullet emission, so the retry failed the same way — and a bullet that comes back malformed is skipped with its id named, keeping its previous rendering when the cache has one. A **missing** bullet stays fatal, preserving the hijack/refusal guard. On a 70-rule corpus this turned a hard failure with 8 unresolved ids into a clean exit 0.
 
