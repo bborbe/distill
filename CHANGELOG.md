@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.9.2
 
 - docs: describe the incremental recompile — a changed rule is revised from its previous bullet, so a one-sentence edit produces a small diff — and split the retry outcome in `docs/spec.md`: a malformed bullet is skipped with a warning and the run exits 0, while a missing bullet stays fatal.
 
