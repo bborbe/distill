@@ -94,6 +94,8 @@ Whether to commit `.distill-cache.json` into your rule repo or gitignore it is a
 
 Changing `system.md` (the compression instructions) or switching `--model` invalidates the whole cache and forces a cold recompile on the next run, because the cache hash folds in the system prompt content and model name.
 
+**Incremental recompile.** When one rule body changes, only that rule is recompiled — and it is compiled *from its previous bullet*, not from scratch: distill passes the last validated rendering and asks the model to revise it minimally, so a one-sentence source edit produces a small diff inside that rule's block instead of rewording the whole thing. The cache keeps one bullet per rule id, so reverting an edit recompiles rather than restoring the earlier rendering.
+
 Use `--no-cache` to bypass cache load and save for a single run (useful when you want to force a fresh compression of all rules). Validation and the anti-injection `claude` flags always run regardless of `--no-cache`.
 
 ## Make integration
