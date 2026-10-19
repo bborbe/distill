@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- fix: the compression system prompt no longer tells the model to split one rule into two or three bullets. That instruction contradicted the validator's exactly-one-top-level-item contract, so a cold run intermittently produced a second column-0 bullet, failed validation, and needed a retry — or, when the retry also failed, aborted the run. The prompt now states that one rule always emits exactly one top-level bullet and that a second coordinated condition goes on an indented continuation line; a regression test pins both.
+
 ## v0.9.2
 
 - docs: describe the incremental recompile — a changed rule is revised from its previous bullet, so a one-sentence edit produces a small diff — and split the retry outcome in `docs/spec.md`: a malformed bullet is skipped with a warning and the run exits 0, while a missing bullet stays fatal.

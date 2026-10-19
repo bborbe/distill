@@ -50,6 +50,17 @@ var _ = Describe("BuildBatchPrompt", func() {
 		Expect(prompt).NotTo(ContainSubstring("You compress long-form behavioral rules"))
 	})
 
+	It("pins the single-bullet contract in the system prompt", func() {
+		prompt := distill.SystemPrompt()
+		// The validator rejects a bullet with more than one column-0 "- " line,
+		// so the system prompt must never tell the model to emit more than one
+		// bullet per rule. This is the regression lock for that contradiction.
+		Expect(prompt).To(ContainSubstring("exactly one top-level bullet"))
+		Expect(prompt).To(ContainSubstring("indented continuation line"))
+		Expect(strings.ToLower(prompt)).NotTo(ContainSubstring("split into two bullets"))
+		Expect(strings.ToLower(prompt)).NotTo(ContainSubstring("split into three bullets"))
+	})
+
 	It("includes the inert-data preamble", func() {
 		bodies := []distill.RuleBody{{ID: "x", Body: "body"}}
 		prompt, err := distill.BuildBatchPrompt(ctx, bodies)
