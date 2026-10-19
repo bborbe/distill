@@ -39,7 +39,7 @@ Name the exact command, path, flag, or file. `Run appropriate tests` is forbidde
 
 ## One rule per bullet
 
-Each bullet expresses exactly one operational decision. If you find yourself writing `and` to join two unrelated behaviors, split into two bullets. (Two coordinated *conditions* of the same rule may share a bullet; two separate *behaviors* may not.)
+Each bullet expresses exactly one operational decision. A rule always emits exactly one top-level bullet: when a rule body describes two coordinated conditions, put the second on an indented continuation line inside that bullet — never a second column-0 `- ` line. Two separate behaviors belong to two separate rules, and one input rule still emits exactly one top-level bullet.
 
 ## Drop the why
 
@@ -362,7 +362,7 @@ Use absolutes: `Always run \`make test\` before commit. Run \`make precommit\` b
 - **Workflow.** Run tests before commit and never edit generated files and prefer new commits over amend.
 ```
 
-Three separate behaviors. Split into three bullets, one rule each.
+Three separate behaviors, so this belongs in three separate rules — one input rule still emits exactly one top-level bullet.
 
 ## Bad — abstract / untestable
 
