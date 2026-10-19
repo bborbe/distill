@@ -4,13 +4,13 @@
 
 ## Goal
 
-Replace the manual "long-form rule → derive a one-liner → paste into CLAUDE.md → bump date" workflow with a single CLI call. The author writes long-form rules in a folder; `distill` compresses cache-miss rules via batched id-keyed LLM calls; the entire output file is regenerated every run. Re-running on unchanged sources spawns zero `claude` processes and writes byte-identical output.
+Replace the manual "long-form rule → derive a one-liner → paste into CLAUDE.md → bump date" workflow with a single CLI call. The author writes long-form rules in a folder; `distill` compresses cache-miss rules via batched id-keyed LLM calls; the entire output file is regenerated on a compile run. Re-running on unchanged sources spawns zero `claude` processes and writes byte-identical output. The cache is bound to the output file it was built for, so a run against a different output cannot re-seed it.
 
 ## Non-goals
 
 - No `--check` mode.
 - No watch / daemon mode. One-shot CLI.
-- No marker-based partial-file addressing. **The output file is owned end-to-end by `distill`** — it is regenerated from scratch every run; any pre-existing content is replaced.
+- No marker-based partial-file addressing. **The output file is owned end-to-end by `distill`** — it is regenerated on every compile run; any pre-existing content is replaced. A rebuild-from-output run leaves the file byte-identical (see § Cache).
 - No multi-target broadcasting from a single source file. One source folder = one output file.
 - No content validation of source files beyond frontmatter parsing.
 - No `BatchSize` CLI flag (it is a Driver field set in the factory).
@@ -81,7 +81,7 @@ A source file with no `distill:` block is silently skipped (treated as docs in t
 
 ## Output Structure
 
-`distill` writes the output file from scratch every run. The shape is fixed:
+`distill` writes the output file every run, except a rebuild-from-output run, which leaves it byte-identical. The shape is fixed:
 
 ```markdown
 <!--
@@ -104,7 +104,7 @@ A source file with no `distill:` block is silently skipped (treated as docs in t
 
 Rules:
 
-- The warning comment is always emitted, always at the top, with the resolved source dir + the exact command to regenerate.
+- The warning comment is always emitted, always at the top, with the resolved source dir + the exact command to regenerate; the `Regenerate:` line uses the normalized absolute output path.
 - The `# <title>` line is emitted only if `--title` is supplied.
 - Sections appear in the order of their first-seen source file's sort position (section ordering = min(rule.order) within that section, then alphabetical for ties).
 - Within a section, bullets are sorted by `(order, id)` ascending.
@@ -114,19 +114,31 @@ Rules:
 
 `distill` maintains a content-hash cache at `<source-dir>/.distill-cache.json`. Committing this file vs gitignoring it is an operator decision; distill's behavior is identical either way (missing cache → cold run).
 
-**Schema:** JSON object with a `version` integer and a `rules` map from id to `{hash, bullet}`.
+**Schema:** JSON object with a `version` string, an `entries` map from id to `{hash, bullet}`, and the optional `output_path` / `output_hash` binding fields.
 
 **Cache hash:** SHA-256 over length-prefixed concatenation of `cachePromptVersion` constant + `SystemPrompt()` content + model string + rule body. Any change to the compression context (including editing `system.md` or switching `--model`) invalidates all entries.
+
+**Output binding.** The cache records the output file it was built for: `output_path` is the normalized absolute `--output` path (`filepath.Abs` then `filepath.Clean`, symlinks unresolved) and `output_hash` is the hex SHA-256 of that file's bytes. A cached bullet is served only when the run's normalized output path equals `output_path` AND the file currently at that path hashes to `output_hash`. Normalization is load-bearing: `.../.claude/../CLAUDE.md` and `.../CLAUDE.md` share one binding. A cache without these fields is unbound and describes no particular output.
+
+**Rebuild from the committed output.** When the cache is unbound (an older schema, or a cache written before the binding existed) or its recorded output hash is stale, distill rebuilds entries from the file at `--output` instead of calling Claude. Sections are read in the order they appear, bullets within a section in rule order, and each bullet is stored under its rule id with that rule's current content hash. The rebuild is a pure function of the rules and the committed output — no network or LLM access. Attribution is all-or-nothing: every section heading in the output must exist in the rules, and every section's bullet count must equal its enabled rule count (an all-disabled section is legitimately 0 bullets / 0 enabled rules). On any mismatch distill warns and falls back to a cold compile; it never serves a partially attributed cache. A rebuilt run makes zero model calls and does not rewrite the output file. A hand-edited bullet is adopted into the cache and survives later warm runs until the run uses `--no-cache`. A **missing** cache is not rebuilt: it runs cold, because rebuilding into an empty cache would attribute the committed output's bullets to the current sources and silently swallow an edit made since that output was committed.
+
+**Foreign output.** A run whose `--output` is not the cache's recorded output reads no entries, writes no cache, and warns naming the recorded output and the remedy (run against that output, or delete the cache). The cache file stays byte-identical. An unbound cache is not foreign: it is rebuilt and bound to the current output on success. Scratch renders to a different path are foreign-output runs and must pass `--no-cache`.
+
+**Output path normalization.** The recorded and compared output path is `filepath.Abs` followed by `filepath.Clean`, with symlinks unresolved. The output header's `Regenerate:` line uses the same normalized absolute path.
 
 **Cache lifecycle:**
 
 | Scenario | Behaviour |
 |---|---|
-| Cache-hit rule | `hash` matches stored entry → serve bullet from cache; skip LLM call. |
-| Cache-miss rule | No entry or hash mismatch → include in next LLM batch. |
-| Fully successful run | Cache rewritten to contain entries for exactly the current enabled rule ids (removed/renamed/disabled rules are pruned). |
-| Validation failure (exit non-zero) | Bullets that DID validate are merged into the cache without pruning; re-run re-requests only the still-failing ids. |
-| Cache missing / corrupt / version-mismatch | Warn to stderr, run cold (all rules treated as misses), exit 0 on success; cache is overwritten on successful completion. |
+| Cache-hit rule | `hash` matches the stored entry AND the cache is bound to this run's output with a matching content hash → serve the bullet; skip the LLM call. |
+| Cache-miss rule | No entry or hash mismatch → include in the next LLM batch. |
+| Fully successful run | Cache rewritten to contain entries for exactly the current enabled rule ids (removed/renamed/disabled rules are pruned) and bound to the normalized absolute output path plus the SHA-256 of the output bytes. |
+| Validation failure (exit non-zero) | Bullets that DID validate are merged into the cache without pruning; the existing binding is preserved and is not rebound. |
+| Cache missing / corrupt | Warn to stderr, run cold (all rules treated as misses), exit 0 on success; the cache is bound and written on successful completion. |
+| Cache schema version is older than the current version | Rebuild entries from the committed output file (zero LLM calls); if the output file is missing, run cold. |
+| The cache does not match the output (recorded path differs) | Foreign output: read no entries, write no cache, warn naming the recorded output and the remedy (run against that output, or delete the cache). The cache file stays byte-identical. |
+| The cache does not match the output (content hash differs) | Rebuild entries from the committed output file (zero LLM calls); the output file is not rewritten. |
+| Output file missing | Cold compile; the cache is bound and written on success. |
 | `--no-cache` | Cache load and save are bypassed entirely; batching, validation, and anti-injection always run. |
 
 ## Compression Prompt
@@ -221,7 +233,11 @@ distill: N cached, M compiled (K chunks), R retried
 | Output dir does not exist | Exit 1; stderr names the dir. |
 | `--source` / `--output` flag missing | Exit 2; stderr prints usage. |
 | Source file has `disabled: true` | Parsed; not sent to Claude; not emitted. |
-| Cache missing / corrupt / version-mismatch | Warn to stderr; cold run; exit 0 on success. |
+| Cache missing / corrupt | Warn to stderr; cold run; exit 0 on success. |
+| Cache schema version older than current | Rebuild entries from the committed output (zero LLM calls); cold run if the output is missing. |
+| Cache belongs to a different output | Warn naming the recorded output and the remedy; read no entries; write no cache; exit 0 on success. |
+| Cache output hash differs from the output file | Rebuild entries from the committed output (zero LLM calls); the output is not rewritten. |
+| Output file missing | Cold run; cache bound on success. |
 | Model returns zero delimiters (hijack / refusal) | Chunk marked failed → scoped retry once → still failing → exit non-zero naming ids; output file untouched. |
 | Model returns invalid bullet for some ids | Those ids retried once scoped; still-invalid → exit non-zero naming them; output untouched. |
 | Model returns bullets for unknown ids | Warn to stderr; ignore extras; continue. |
@@ -233,11 +249,11 @@ distill: N cached, M compiled (K chunks), R retried
 - `pkg/distill/` — Driver + collaborators
   - `source.go` — parse folder; extract frontmatter + body
   - `batch.go` — `BuildBatchPrompt` (inert-data wrapping); `ParseBatchResponse` (fence-aware); `ValidateBullet`
-  - `cache.go` — `Cache` interface; `NewFileCache`; `NewNoopCache`; `RuleHash`
+  - `cache.go` — `Cache` interface; `CacheStatus`; `NewFileCache`; `NewNoopCache`; `RuleHash`; output binding (normalized path + content hash)
   - `system.md` — compression instructions (passed out-of-band, never in user prompt)
   - `claude.go` — wrap `exec.CommandContext("claude", ...)`; anti-injection flag set; stream-JSON parsing
   - `writer.go` — atomic temp+rename write
-  - `driver.go` — orchestrate; `compileBullets`; `assembleOutput`; `ExitCode`
+  - `driver.go` — orchestrate; `compileBullets`; `assembleOutput`; `rebuildFromOutput`; `ExitCode`
 - `pkg/factory/` — wire collaborators
 
 Tests mock `Runner` and `Cache` so unit / E2E tests are deterministic and offline.

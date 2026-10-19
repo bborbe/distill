@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [002-bug-cache-not-bound-to-output]
+summary: Documented the cache output binding and rebuild-from-output path in docs/spec.md, README, adopting-distill.md, and CHANGELOG.md
+execution_id: distill-cache-output-bound-exec-009-docs-cache-binding
+dark-factory-version: v0.198.7
 created: "2026-10-19T20:45:00Z"
 queued: "2026-10-19T21:25:38Z"
+started: "2026-10-19T21:35:13Z"
+completed: "2026-10-19T21:37:41Z"
 branch: dark-factory/bug-cache-not-bound-to-output
 ---
 
