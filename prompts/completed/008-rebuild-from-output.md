@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [002-bug-cache-not-bound-to-output]
+summary: Added output parsing and all-or-nothing attribution so stale or unbound caches rebuild from the committed output with zero model calls, falling back to a cold compile on any mismatch
+execution_id: distill-cache-output-bound-exec-008-rebuild-from-output
+dark-factory-version: v0.198.7
 created: "2026-10-19T20:45:00Z"
 queued: "2026-10-19T21:25:38Z"
+started: "2026-10-19T21:30:05Z"
+completed: "2026-10-19T21:35:11Z"
 branch: dark-factory/bug-cache-not-bound-to-output
 ---
 

@@ -148,7 +148,7 @@ Do not change the flag table or claim a new flag exists.
 
 ## 4. Update `CHANGELOG.md`
 
-Add a `## Unreleased` section immediately after the introductory paragraph (`All notable changes ...`) and before the latest released version. Add one `fix:` bullet that describes the shipped behavior:
+A `## Unreleased` section may already exist — prompt 1 added one despite its constraint. If it exists, replace its bullet with the one below so there is exactly **one** `fix:` bullet describing the whole change; do not create a second `## Unreleased` heading. If it does not exist, add the section immediately after the introductory paragraph (`All notable changes ...`) and before the latest released version, with this bullet:
 
 ```
 - fix: bind the content-hash cache to the output file it was built for. The cache now records the normalized absolute `--output` path and a SHA-256 of the output bytes, and serves entries only when both match. A run whose output differs from the recorded one reads no entries, writes no cache, and warns instead of re-seeding the shared cache from a scratch render. When the recorded path matches but the content hash is stale (or the cache predates the binding), distill rebuilds entries from the committed output with zero `claude` calls; attribution is all-or-nothing and falls back to a cold compile on a section/bullet count mismatch. The output header's `Regenerate:` line now records the normalized absolute path. `--no-cache` is unchanged.
@@ -171,11 +171,12 @@ Follow the changelog guide: the prefix is required, the bullet names the behavio
 <verification>
 Run `make precommit` — it must exit 0.
 
-CHANGELOG has a non-empty Unreleased section:
+CHANGELOG has exactly one non-empty Unreleased section:
 ```
-awk '/^## Unreleased/{f=1;next} /^## /{f=0} f && NF' CHANGELOG.md | wc -l
+test "$(grep -c '^## Unreleased' CHANGELOG.md)" -eq 1
+test "$(awk '/^## Unreleased/{f=1;next} /^## /{f=0} f && NF' CHANGELOG.md | wc -l)" -ge 1
 ```
-Returns ≥ 1.
+Both must exit 0 (`wc -l` alone always exits 0, so the `test` is what makes the check fail).
 
 The Cache section mentions the output binding:
 ```
