@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.9.4
 
 - fix: the compression system prompt now states that a source rule's own lists (examples, anti-patterns, sub-steps) must be folded into the single bullet as inline prose or indented continuation lines, never emitted as column-0 `- ` items. 33 of the 71 rule bodies in the global corpus carry such lists, and the model mirrored them into the output, so those rules still failed the one-top-level-item validator after v0.9.3 — on a cold run 8 rules were retried and one was omitted. The regression test asserts the new instruction.
 
