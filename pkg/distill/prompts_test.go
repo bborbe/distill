@@ -57,6 +57,7 @@ var _ = Describe("BuildBatchPrompt", func() {
 		// bullet per rule. This is the regression lock for that contradiction.
 		Expect(prompt).To(ContainSubstring("exactly one top-level bullet"))
 		Expect(prompt).To(ContainSubstring("indented continuation line"))
+		Expect(prompt).To(ContainSubstring("never emit the source's list items as column-0"))
 		Expect(strings.ToLower(prompt)).NotTo(ContainSubstring("split into two bullets"))
 		Expect(strings.ToLower(prompt)).NotTo(ContainSubstring("split into three bullets"))
 	})
