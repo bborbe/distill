@@ -49,6 +49,11 @@ type Driver struct {
 // assembled output file. The whole output is regenerated every run; any prior
 // contents at outputPath are overwritten only on full success.
 func (d *Driver) Run(ctx context.Context, sourceDir, outputPath string) error {
+	normalizedOutput, err := normalizeOutputPath(ctx, outputPath)
+	if err != nil {
+		return err
+	}
+
 	rules, err := d.Parser.Parse(ctx, sourceDir)
 	if err != nil {
 		return err
@@ -59,38 +64,71 @@ func (d *Driver) Run(ctx context.Context, sourceDir, outputPath string) error {
 	enabled := filterEnabled(rules)
 	sortRulesGlobal(enabled)
 
+	status := CacheCold
 	if !d.NoCache {
-		if loadErr := d.Cache.Load(ctx); loadErr != nil {
-			fmt.Fprintf(d.Stderr, "distill: cache load warning: %v\n", loadErr)
-		}
+		status = d.loadCache(ctx, normalizedOutput)
 	}
 
 	bulletByID, err := d.compileBullets(ctx, enabled)
 	if err != nil {
-		if !d.NoCache {
-			if saveErr := d.Cache.SaveMerged(ctx); saveErr != nil {
-				fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
-			}
-		}
+		d.saveMergedUnlessForeign(ctx, status)
 		return err
 	}
 
-	output := assembleOutput(sourceDir, outputPath, d.Title, enabled, bulletByID)
-	if err := d.Writer.Write(ctx, outputPath, output); err != nil {
+	output := assembleOutput(sourceDir, normalizedOutput, d.Title, enabled, bulletByID)
+	if err := d.Writer.Write(ctx, normalizedOutput, output); err != nil {
 		return err
 	}
 
-	if !d.NoCache {
-		keepIDs := make([]string, 0, len(enabled))
-		for _, r := range enabled {
-			keepIDs = append(keepIDs, r.ID)
-		}
-		if saveErr := d.Cache.Save(ctx, keepIDs); saveErr != nil {
-			fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
-		}
-	}
+	d.saveUnlessForeign(ctx, status, normalizedOutput, enabled)
 
 	return nil
+}
+
+// loadCache loads the cache and returns its classification. A load error is a
+// warning; it never aborts the run.
+func (d *Driver) loadCache(ctx context.Context, outputPath string) CacheStatus {
+	if loadErr := d.Cache.Load(ctx, outputPath); loadErr != nil {
+		fmt.Fprintf(d.Stderr, "distill: cache load warning: %v\n", loadErr)
+		return CacheCold
+	}
+	return d.Cache.Status()
+}
+
+// saveUnlessForeign persists the cache after a successful run. A foreign output
+// is never written; --no-cache never writes.
+func (d *Driver) saveUnlessForeign(
+	ctx context.Context,
+	status CacheStatus,
+	outputPath string,
+	enabled []Rule,
+) {
+	if d.NoCache || status == CacheForeign {
+		return
+	}
+	if saveErr := d.Cache.Save(ctx, outputPath, ruleIDs(enabled)); saveErr != nil {
+		fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
+	}
+}
+
+// saveMergedUnlessForeign merges validated bullets after a failed run. A foreign
+// output is never written; --no-cache never writes.
+func (d *Driver) saveMergedUnlessForeign(ctx context.Context, status CacheStatus) {
+	if d.NoCache || status == CacheForeign {
+		return
+	}
+	if saveErr := d.Cache.SaveMerged(ctx); saveErr != nil {
+		fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
+	}
+}
+
+// ruleIDs returns the ids of rules in order.
+func ruleIDs(rules []Rule) []string {
+	ids := make([]string, 0, len(rules))
+	for _, r := range rules {
+		ids = append(ids, r.ID)
+	}
+	return ids
 }
 
 // compileBullets returns a validated bullet for every enabled rule id, or an

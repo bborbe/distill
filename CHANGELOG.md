@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- fix: bind the persisted cache to the output file it was built for. `.distill-cache.json` now records the normalized absolute `--output` path and a SHA-256 of the output bytes; entries are served only on a full path-and-hash match. A cache bound to a different output is classified foreign: the run reads no entries, compiles cold, and leaves the cache byte-identical with a warning naming the recorded output and the remedy. A cache with a stale hash, an older schema version, or no binding is classified for rebuild-from-output; a missing cache stays cold. Two spellings of one output (for example one containing `..`) share one binding.
+
 ## v0.9.4
 
 - fix: the compression system prompt now states that a source rule's own lists (examples, anti-patterns, sub-steps) must be folded into the single bullet as inline prose or indented continuation lines, never emitted as column-0 `- ` items. 33 of the 71 rule bodies in the global corpus carry such lists, and the model mirrored them into the output, so those rules still failed the one-top-level-item validator after v0.9.3 — on a cold run 8 rules were retried and one was omitted. The regression test asserts the new instruction.
