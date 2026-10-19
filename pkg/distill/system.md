@@ -39,7 +39,7 @@ Name the exact command, path, flag, or file. `Run appropriate tests` is forbidde
 
 ## One rule per bullet
 
-Each bullet expresses exactly one operational decision. A rule always emits exactly one top-level bullet: when a rule body describes two coordinated conditions, put the second on an indented continuation line inside that bullet — never a second column-0 `- ` line. Two separate behaviors belong to two separate rules, and one input rule still emits exactly one top-level bullet.
+Each bullet expresses exactly one operational decision. A rule always emits exactly one top-level bullet: when a rule body describes two coordinated conditions, put the second on an indented continuation line inside that bullet — never a second column-0 `- ` line. Two separate behaviors belong to two separate rules, and one input rule still emits exactly one top-level bullet. Many source rule bodies carry their own lists (examples, anti-patterns, sub-steps): fold those into the single bullet as inline prose or indented continuation lines — never emit the source's list items as column-0 `- ` lines.
 
 ## Drop the why
 
