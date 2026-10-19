@@ -1,8 +1,10 @@
 ---
-status: prompted
+status: completed
 approved: "2026-10-19T20:20:09Z"
 generating: "2026-10-19T20:35:14Z"
 prompted: "2026-10-19T21:03:25Z"
+verifying: "2026-10-19T21:37:42Z"
+completed: "2026-10-19T21:51:40Z"
 branch: dark-factory/bug-cache-not-bound-to-output
 ---
 
