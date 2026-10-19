@@ -31,7 +31,7 @@ type DistillCache struct {
 		result1 string
 		result2 bool
 	}
-	LoadStub        func(context.Context) error
+	LoadStub        func(context.Context, string) error
 	loadMutex       sync.RWMutex
 	loadArgsForCall []DistillCacheLoadArgs
 	loadReturns     struct {
@@ -52,7 +52,7 @@ type DistillCache struct {
 	ruleHashReturnsOnCall map[int]struct {
 		result1 string
 	}
-	SaveStub        func(context.Context, []string) error
+	SaveStub        func(context.Context, string, []string) error
 	saveMutex       sync.RWMutex
 	saveArgsForCall []DistillCacheSaveArgs
 	saveReturns     struct {
@@ -69,6 +69,15 @@ type DistillCache struct {
 	}
 	saveMergedReturnsOnCall map[int]struct {
 		result1 error
+	}
+	StatusStub        func() distill.CacheStatus
+	statusMutex       sync.RWMutex
+	statusArgsForCall []struct{}
+	statusReturns     struct {
+		result1 distill.CacheStatus
+	}
+	statusReturnsOnCall map[int]struct {
+		result1 distill.CacheStatus
 	}
 	invocations      map[string][][]interface{}
 	callOrder        []string
@@ -89,6 +98,7 @@ type DistillCacheGetPreviousArgs struct {
 // DistillCacheLoadArgs holds the arguments of one call to Load.
 type DistillCacheLoadArgs struct {
 	Arg1 context.Context
+	Arg2 string
 }
 
 // DistillCachePutArgs holds the arguments of one call to Put.
@@ -107,7 +117,8 @@ type DistillCacheRuleHashArgs struct {
 // DistillCacheSaveArgs holds the arguments of one call to Save.
 type DistillCacheSaveArgs struct {
 	Arg1 context.Context
-	Arg2 []string
+	Arg2 string
+	Arg3 []string
 }
 
 // DistillCacheSaveMergedArgs holds the arguments of one call to SaveMerged.
@@ -255,16 +266,16 @@ func (fake *DistillCache) GetPreviousReturnsOnCall(i int, result1 string, result
 	}{result1, result2}
 }
 
-func (fake *DistillCache) Load(arg1 context.Context) error {
+func (fake *DistillCache) Load(arg1 context.Context, arg2 string) error {
 	fake.loadMutex.Lock()
 	ret, specificReturn := fake.loadReturnsOnCall[len(fake.loadArgsForCall)]
-	fake.loadArgsForCall = append(fake.loadArgsForCall, DistillCacheLoadArgs{arg1})
+	fake.loadArgsForCall = append(fake.loadArgsForCall, DistillCacheLoadArgs{arg1, arg2})
 	stub := fake.LoadStub
 	fakeReturns := fake.loadReturns
-	fake.recordInvocation("Load", []interface{}{arg1})
+	fake.recordInvocation("Load", []interface{}{arg1, arg2})
 	fake.loadMutex.Unlock()
 	if stub != nil {
-		return stub(arg1)
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
@@ -278,17 +289,17 @@ func (fake *DistillCache) LoadCallCount() int {
 	return len(fake.loadArgsForCall)
 }
 
-func (fake *DistillCache) LoadCalls(stub func(context.Context) error) {
+func (fake *DistillCache) LoadCalls(stub func(context.Context, string) error) {
 	fake.loadMutex.Lock()
 	defer fake.loadMutex.Unlock()
 	fake.LoadStub = stub
 }
 
-func (fake *DistillCache) LoadArgsForCall(i int) context.Context {
+func (fake *DistillCache) LoadArgsForCall(i int) (context.Context, string) {
 	fake.loadMutex.RLock()
 	defer fake.loadMutex.RUnlock()
 	argsForCall := fake.loadArgsForCall[i]
-	return argsForCall.Arg1
+	return argsForCall.Arg1, argsForCall.Arg2
 }
 
 func (fake *DistillCache) LoadArgs() []DistillCacheLoadArgs {
@@ -427,21 +438,21 @@ func (fake *DistillCache) RuleHashReturnsOnCall(i int, result1 string) {
 	}{result1}
 }
 
-func (fake *DistillCache) Save(arg1 context.Context, arg2 []string) error {
-	var arg2Copy []string
-	if arg2 != nil {
-		arg2Copy = make([]string, len(arg2))
-		copy(arg2Copy, arg2)
+func (fake *DistillCache) Save(arg1 context.Context, arg2 string, arg3 []string) error {
+	var arg3Copy []string
+	if arg3 != nil {
+		arg3Copy = make([]string, len(arg3))
+		copy(arg3Copy, arg3)
 	}
 	fake.saveMutex.Lock()
 	ret, specificReturn := fake.saveReturnsOnCall[len(fake.saveArgsForCall)]
-	fake.saveArgsForCall = append(fake.saveArgsForCall, DistillCacheSaveArgs{arg1, arg2Copy})
+	fake.saveArgsForCall = append(fake.saveArgsForCall, DistillCacheSaveArgs{arg1, arg2, arg3Copy})
 	stub := fake.SaveStub
 	fakeReturns := fake.saveReturns
-	fake.recordInvocation("Save", []interface{}{arg1, arg2Copy})
+	fake.recordInvocation("Save", []interface{}{arg1, arg2, arg3Copy})
 	fake.saveMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2)
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
@@ -455,17 +466,17 @@ func (fake *DistillCache) SaveCallCount() int {
 	return len(fake.saveArgsForCall)
 }
 
-func (fake *DistillCache) SaveCalls(stub func(context.Context, []string) error) {
+func (fake *DistillCache) SaveCalls(stub func(context.Context, string, []string) error) {
 	fake.saveMutex.Lock()
 	defer fake.saveMutex.Unlock()
 	fake.SaveStub = stub
 }
 
-func (fake *DistillCache) SaveArgsForCall(i int) (context.Context, []string) {
+func (fake *DistillCache) SaveArgsForCall(i int) (context.Context, string, []string) {
 	fake.saveMutex.RLock()
 	defer fake.saveMutex.RUnlock()
 	argsForCall := fake.saveArgsForCall[i]
-	return argsForCall.Arg1, argsForCall.Arg2
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
 }
 
 func (fake *DistillCache) SaveArgs() []DistillCacheSaveArgs {
@@ -563,6 +574,58 @@ func (fake *DistillCache) SaveMergedReturnsOnCall(i int, result1 error) {
 	}
 	fake.saveMergedReturnsOnCall[i] = struct {
 		result1 error
+	}{result1}
+}
+
+func (fake *DistillCache) Status() distill.CacheStatus {
+	fake.statusMutex.Lock()
+	ret, specificReturn := fake.statusReturnsOnCall[len(fake.statusArgsForCall)]
+	fake.statusArgsForCall = append(fake.statusArgsForCall, struct{}{})
+	stub := fake.StatusStub
+	fakeReturns := fake.statusReturns
+	fake.recordInvocation("Status", []interface{}{})
+	fake.statusMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *DistillCache) StatusCallCount() int {
+	fake.statusMutex.RLock()
+	defer fake.statusMutex.RUnlock()
+	return len(fake.statusArgsForCall)
+}
+
+func (fake *DistillCache) StatusCalls(stub func() distill.CacheStatus) {
+	fake.statusMutex.Lock()
+	defer fake.statusMutex.Unlock()
+	fake.StatusStub = stub
+}
+
+func (fake *DistillCache) StatusReturns(result1 distill.CacheStatus) {
+	fake.statusMutex.Lock()
+	defer fake.statusMutex.Unlock()
+	fake.StatusStub = nil
+	fake.statusReturns = struct {
+		result1 distill.CacheStatus
+	}{result1}
+}
+
+func (fake *DistillCache) StatusReturnsOnCall(i int, result1 distill.CacheStatus) {
+	fake.statusMutex.Lock()
+	defer fake.statusMutex.Unlock()
+	fake.StatusStub = nil
+	if fake.statusReturnsOnCall == nil {
+		fake.statusReturnsOnCall = make(map[int]struct {
+			result1 distill.CacheStatus
+		})
+	}
+	fake.statusReturnsOnCall[i] = struct {
+		result1 distill.CacheStatus
 	}{result1}
 }
 

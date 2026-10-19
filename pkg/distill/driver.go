@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 
@@ -49,6 +50,11 @@ type Driver struct {
 // assembled output file. The whole output is regenerated every run; any prior
 // contents at outputPath are overwritten only on full success.
 func (d *Driver) Run(ctx context.Context, sourceDir, outputPath string) error {
+	normalizedOutput, err := normalizeOutputPath(ctx, outputPath)
+	if err != nil {
+		return err
+	}
+
 	rules, err := d.Parser.Parse(ctx, sourceDir)
 	if err != nil {
 		return err
@@ -59,38 +65,287 @@ func (d *Driver) Run(ctx context.Context, sourceDir, outputPath string) error {
 	enabled := filterEnabled(rules)
 	sortRulesGlobal(enabled)
 
+	status := CacheCold
 	if !d.NoCache {
-		if loadErr := d.Cache.Load(ctx); loadErr != nil {
-			fmt.Fprintf(d.Stderr, "distill: cache load warning: %v\n", loadErr)
+		status = d.loadCache(ctx, normalizedOutput)
+		if status == CacheRebuild {
+			if d.tryRebuild(ctx, normalizedOutput, rules, enabled) {
+				return nil
+			}
+			status = CacheCold
 		}
 	}
 
 	bulletByID, err := d.compileBullets(ctx, enabled)
 	if err != nil {
-		if !d.NoCache {
-			if saveErr := d.Cache.SaveMerged(ctx); saveErr != nil {
-				fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
-			}
-		}
+		d.saveMergedUnlessForeign(ctx, status)
 		return err
 	}
 
-	output := assembleOutput(sourceDir, outputPath, d.Title, enabled, bulletByID)
-	if err := d.Writer.Write(ctx, outputPath, output); err != nil {
+	output := assembleOutput(sourceDir, normalizedOutput, d.Title, enabled, bulletByID)
+	if err := d.Writer.Write(ctx, normalizedOutput, output); err != nil {
 		return err
 	}
 
-	if !d.NoCache {
-		keepIDs := make([]string, 0, len(enabled))
-		for _, r := range enabled {
-			keepIDs = append(keepIDs, r.ID)
-		}
-		if saveErr := d.Cache.Save(ctx, keepIDs); saveErr != nil {
-			fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
-		}
-	}
+	d.saveUnlessForeign(ctx, status, normalizedOutput, enabled)
 
 	return nil
+}
+
+// loadCache loads the cache and returns its classification. A load error is a
+// warning; it never aborts the run.
+func (d *Driver) loadCache(ctx context.Context, outputPath string) CacheStatus {
+	if loadErr := d.Cache.Load(ctx, outputPath); loadErr != nil {
+		fmt.Fprintf(d.Stderr, "distill: cache load warning: %v\n", loadErr)
+		return CacheCold
+	}
+	return d.Cache.Status()
+}
+
+// saveUnlessForeign persists the cache after a successful run. A foreign output
+// is never written; --no-cache never writes.
+func (d *Driver) saveUnlessForeign(
+	ctx context.Context,
+	status CacheStatus,
+	outputPath string,
+	enabled []Rule,
+) {
+	if d.NoCache || status == CacheForeign {
+		return
+	}
+	if saveErr := d.Cache.Save(ctx, outputPath, ruleIDs(enabled)); saveErr != nil {
+		fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
+	}
+}
+
+// saveMergedUnlessForeign merges validated bullets after a failed run. A foreign
+// output is never written; --no-cache never writes.
+func (d *Driver) saveMergedUnlessForeign(ctx context.Context, status CacheStatus) {
+	if d.NoCache || status == CacheForeign {
+		return
+	}
+	if saveErr := d.Cache.SaveMerged(ctx); saveErr != nil {
+		fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
+	}
+}
+
+// ruleIDs returns the ids of rules in order.
+func ruleIDs(rules []Rule) []string {
+	ids := make([]string, 0, len(rules))
+	for _, r := range rules {
+		ids = append(ids, r.ID)
+	}
+	return ids
+}
+
+// tryRebuild rebuilds cache entries from the committed output. It returns true
+// when the run is complete: the cache is saved and the output is untouched.
+func (d *Driver) tryRebuild(
+	ctx context.Context,
+	outputPath string,
+	allRules, enabled []Rule,
+) bool {
+	bulletByID, err := rebuildFromOutput(ctx, outputPath, allRules, enabled)
+	if err != nil {
+		fmt.Fprintf(
+			d.Stderr,
+			"distill: warning: committed output %q cannot be attributed "+
+				"to the rules: %v — compiling cold\n",
+			outputPath,
+			err,
+		)
+		return false
+	}
+	for _, r := range enabled {
+		d.Cache.Put(r.ID, d.Cache.RuleHash(d.Model, r.Body), bulletByID[r.ID])
+	}
+	if saveErr := d.Cache.Save(ctx, outputPath, ruleIDs(enabled)); saveErr != nil {
+		fmt.Fprintf(d.Stderr, "distill: cache save warning: %v\n", saveErr)
+	}
+	fmt.Fprintf(
+		d.Stderr,
+		"distill: %d cached, 0 compiled (0 chunks), 0 retried\n",
+		len(enabled),
+	)
+	return true
+}
+
+// outputSection is one `## <name>` heading and its bullets in file order.
+type outputSection struct {
+	Name    string
+	Bullets []string
+}
+
+// parseOutputSections parses an assembled output file into sections and their
+// bullets. It reads only column-0 markers outside fenced code blocks.
+func parseOutputSections(ctx context.Context, output string) ([]outputSection, error) {
+	p := &outputParser{seen: make(map[string]struct{}, 8)}
+	for _, line := range strings.Split(output, "\n") {
+		if err := p.consume(ctx, line); err != nil {
+			return nil, err
+		}
+	}
+	p.finalizeSection()
+	return p.sections, nil
+}
+
+// outputParser accumulates sections and bullets while scanning the output.
+type outputParser struct {
+	sections []outputSection
+	seen     map[string]struct{}
+	current  *outputSection
+	bullet   string
+	inFence  bool
+}
+
+// consume processes one line: fence toggling first, then markers, then any
+// continuation of the open bullet.
+func (p *outputParser) consume(ctx context.Context, line string) error {
+	if strings.HasPrefix(strings.TrimSpace(line), "```") {
+		p.inFence = !p.inFence
+	}
+	if !p.inFence {
+		handled, err := p.marker(ctx, line)
+		if err != nil {
+			return err
+		}
+		if handled {
+			return nil
+		}
+	}
+	if p.bullet != "" {
+		p.bullet += "\n" + line
+	}
+	return nil
+}
+
+// marker classifies a column-0 marker line. The bool reports whether the line
+// was a marker and therefore must not be appended to the current bullet.
+func (p *outputParser) marker(ctx context.Context, line string) (bool, error) {
+	switch {
+	case strings.HasPrefix(line, "## "):
+		return true, p.startSection(ctx, line)
+	case strings.HasPrefix(line, "- **"):
+		if p.current == nil {
+			return false, errors.Errorf(ctx, "bullet before first section heading")
+		}
+		p.finalizeBullet()
+		p.bullet = line
+		return true, nil
+	case strings.HasPrefix(line, "- "):
+		return false, errors.Errorf(ctx, "column-0 list item is not a bold bullet")
+	}
+	return false, nil
+}
+
+// startSection finalizes the open section and opens the heading's section.
+func (p *outputParser) startSection(ctx context.Context, line string) error {
+	p.finalizeSection()
+	name := strings.TrimSpace(strings.TrimPrefix(line, "## "))
+	if _, ok := p.seen[name]; ok {
+		return errors.Errorf(ctx, "duplicate section heading %q", name)
+	}
+	p.seen[name] = struct{}{}
+	p.current = &outputSection{Name: name}
+	return nil
+}
+
+// finalizeBullet appends the open bullet, trimmed like assembleOutput does.
+func (p *outputParser) finalizeBullet() {
+	if p.current == nil || p.bullet == "" {
+		return
+	}
+	p.current.Bullets = append(p.current.Bullets, strings.TrimRight(p.bullet, "\n \t"))
+	p.bullet = ""
+}
+
+// finalizeSection finalizes the open bullet and section.
+func (p *outputParser) finalizeSection() {
+	p.finalizeBullet()
+	if p.current == nil {
+		return
+	}
+	p.sections = append(p.sections, *p.current)
+	p.current = nil
+}
+
+// attributeSections zips each section's bullets positionally onto its enabled
+// rules in emission order. It is all-or-nothing.
+func attributeSections(
+	ctx context.Context,
+	allRules, enabled []Rule,
+	sections []outputSection,
+) (map[string]string, error) {
+	known := make(map[string]struct{}, len(allRules))
+	for _, r := range allRules {
+		known[r.Section] = struct{}{}
+	}
+	groups, _ := groupBySection(enabled)
+
+	bulletsBySection := make(map[string][]string, len(sections))
+	for _, s := range sections {
+		if _, ok := known[s.Name]; !ok {
+			return nil, errors.Errorf(
+				ctx,
+				"output section %q does not exist in the rules",
+				s.Name,
+			)
+		}
+		bulletsBySection[s.Name] = s.Bullets
+	}
+
+	bulletByID := make(map[string]string, len(enabled))
+	for name, rules := range groups {
+		bullets, ok := bulletsBySection[name]
+		if !ok {
+			return nil, errors.Errorf(ctx, "output is missing section %q", name)
+		}
+		if len(bullets) != len(rules) {
+			return nil, errors.Errorf(
+				ctx,
+				"section %q has %d bullets but %d enabled rules",
+				name,
+				len(bullets),
+				len(rules),
+			)
+		}
+		for i, r := range rules {
+			bulletByID[r.ID] = bullets[i]
+		}
+	}
+
+	for _, s := range sections {
+		if _, ok := groups[s.Name]; ok {
+			continue
+		}
+		if len(s.Bullets) != 0 {
+			return nil, errors.Errorf(
+				ctx,
+				"section %q has bullets but no enabled rules",
+				s.Name,
+			)
+		}
+	}
+	return bulletByID, nil
+}
+
+// rebuildFromOutput reads outputPath and returns a bullet for every enabled
+// rule id, or an error when the output cannot be attributed exactly.
+func rebuildFromOutput(
+	ctx context.Context,
+	outputPath string,
+	allRules, enabled []Rule,
+) (map[string]string, error) {
+	// #nosec G304 -- outputPath is the operator-supplied --output argument, not free-form input
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		return nil, errors.Wrapf(ctx, err, "read committed output %q", outputPath)
+	}
+	sections, err := parseOutputSections(ctx, string(data))
+	if err != nil {
+		return nil, err
+	}
+	return attributeSections(ctx, allRules, enabled, sections)
 }
 
 // compileBullets returns a validated bullet for every enabled rule id, or an

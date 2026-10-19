@@ -593,8 +593,30 @@ var _ = Describe("Driver", func() {
 		}
 		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
 		Expect(cache.SaveCallCount()).To(Equal(1))
-		_, keepIDs := cache.SaveArgsForCall(0)
+		_, _, keepIDs := cache.SaveArgsForCall(0)
 		Expect(keepIDs).To(ConsistOf("a"))
+	})
+
+	It("warns and keeps the run green when Cache.Save fails", func() {
+		writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody\n")
+		stub := stubRunnerWith(nil)
+		cache := &mocks.DistillCache{}
+		cache.RuleHashStub = func(model, body string) string { return "h" }
+		cache.GetStub = func(id, hash string) (string, bool) { return "", false }
+		cache.SaveReturns(fmt.Errorf("disk full"))
+		var stderrBuf bytes.Buffer
+		driver := &distill.Driver{
+			Parser:    distill.NewParser(),
+			Runner:    stub,
+			Writer:    distill.NewWriter(),
+			Stderr:    &stderrBuf,
+			Title:     "",
+			NoCache:   false,
+			BatchSize: 100,
+			Cache:     cache,
+		}
+		Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		Expect(stderrBuf.String()).To(ContainSubstring("cache save warning"))
 	})
 
 	It("calls Cache.SaveMerged (not Save) on compile failure when NoCache=false", func() {
@@ -737,6 +759,130 @@ var _ = Describe("Driver", func() {
 			Expect(cf.Entries).NotTo(HaveKey("b"))
 		})
 
+		It("foreign output: compiles cold and leaves the cache byte-identical", func() {
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			outputA := filepath.Join(tempDir, "a.md")
+			outputB := filepath.Join(tempDir, "b.md")
+
+			// First run binds the cache to output A.
+			stub1 := stubRunnerWith(nil)
+			driver1 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub1,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver1.Run(ctx, sourceDir, outputA)).To(Succeed())
+			cacheBefore, err := os.ReadFile(cachePath)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Second run targets a different output: it must compile cold and
+			// must not touch the cache.
+			var stderrBuf bytes.Buffer
+			stub2 := stubRunnerWith(nil)
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver2.Run(ctx, sourceDir, outputB)).To(Succeed())
+			Expect(stub2.RunCallCount()).To(Equal(1))
+			Expect(outputB).To(BeAnExistingFile())
+			cacheAfter, err := os.ReadFile(cachePath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cacheAfter).To(Equal(cacheBefore))
+			Expect(stderrBuf.String()).To(ContainSubstring(outputA))
+			Expect(stderrBuf.String()).To(ContainSubstring("run against that output"))
+			Expect(stderrBuf.String()).To(ContainSubstring("delete the cache"))
+		})
+
+		It("two spellings of one output share one binding", func() {
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			// Build the dirty spelling without filepath.Join, which would clean it.
+			dirty := tempDir + "/.claude/../CLAUDE.md"
+			cleaned := filepath.Join(tempDir, "CLAUDE.md")
+
+			stub1 := stubRunnerWith(nil)
+			driver1 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub1,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver1.Run(ctx, sourceDir, dirty)).To(Succeed())
+
+			raw, err := os.ReadFile(cachePath)
+			Expect(err).NotTo(HaveOccurred())
+			var cf struct {
+				OutputPath string `json:"output_path"`
+			}
+			Expect(json.Unmarshal(raw, &cf)).To(Succeed())
+			Expect(cf.OutputPath).To(Equal(cleaned))
+
+			firstOut, err := os.ReadFile(cleaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var stderrBuf bytes.Buffer
+			stub2 := stubRunnerWith(nil)
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver2.Run(ctx, sourceDir, cleaned)).To(Succeed())
+			Expect(stub2.RunCallCount()).To(Equal(0))
+			Expect(stderrBuf.String()).To(MatchRegexp(`1 cached, 0 compiled`))
+			secondOut, err := os.ReadFile(cleaned)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(secondOut).To(Equal(firstOut))
+		})
+
+		It("--no-cache leaves the cache byte-identical and still compiles", func() {
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+
+			stub1 := stubRunnerWith(nil)
+			driver1 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub1,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver1.Run(ctx, sourceDir, outputPath)).To(Succeed())
+			cacheBefore, err := os.ReadFile(cachePath)
+			Expect(err).NotTo(HaveOccurred())
+
+			stub2 := stubRunnerWith(nil)
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+				NoCache:   true,
+			}
+			Expect(driver2.Run(ctx, sourceDir, filepath.Join(tempDir, "other.md"))).To(Succeed())
+			Expect(stub2.RunCallCount()).To(Equal(1))
+			cacheAfter, err := os.ReadFile(cachePath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cacheAfter).To(Equal(cacheBefore))
+		})
+
 		It("corrupt cache: warns, runs cold (all rules re-requested), returns nil", func() {
 			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
 			cachePath := filepath.Join(tempDir, ".distill-cache.json")
@@ -756,6 +902,207 @@ var _ = Describe("Driver", func() {
 			Expect(stderrBuf.String()).To(ContainSubstring("corrupt"))
 			// All rules were cold — runner called at least once.
 			Expect(stub.RunCallCount()).To(BeNumerically(">=", 1))
+		})
+	})
+
+	Describe("rebuild from committed output", func() {
+		// firstRun writes both rules and binds the cache to outputPath.
+		firstRun := func(cachePath string) {
+			writeSource(
+				"a.md",
+				"---\ndistill:\n  section: Git\n  id: a\n  order: 10\n---\nbody a\n",
+			)
+			writeSource(
+				"b.md",
+				"---\ndistill:\n  section: Git\n  id: b\n  order: 20\n---\nbody b\n",
+			)
+			stub := stubRunnerWith(map[string]string{
+				"a": "- **A.** alpha",
+				"b": "- **B.** beta",
+			})
+			driver := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+			}
+			Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+		}
+
+		It("rebuilds from a hand-edited output without calling runner or writer", func() {
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			firstRun(cachePath)
+
+			edited := strings.Replace(
+				readOutput(),
+				"- **A.** alpha",
+				"- **A.** hand-edited",
+				1,
+			)
+			Expect(os.WriteFile(outputPath, []byte(edited), 0o644)).To(Succeed())
+
+			var stderrBuf bytes.Buffer
+			stub := &mocks.DistillRunner{}
+			mockWriter := &mocks.DistillWriter{}
+			driver := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub,
+				Writer:    mockWriter,
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			Expect(stub.RunCallCount()).To(Equal(0))
+			Expect(mockWriter.WriteCallCount()).To(Equal(0))
+			Expect(readOutput()).To(Equal(edited))
+			Expect(stderrBuf.String()).To(ContainSubstring("2 cached, 0 compiled"))
+		})
+
+		It("rebuilds from an old-schema cache without calling the runner", func() {
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			firstRun(cachePath)
+
+			raw, err := os.ReadFile(cachePath)
+			Expect(err).NotTo(HaveOccurred())
+			var cf map[string]json.RawMessage
+			Expect(json.Unmarshal(raw, &cf)).To(Succeed())
+			cf["version"] = json.RawMessage(`"v3"`)
+			patched, err := json.Marshal(cf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(cachePath, patched, 0o644)).To(Succeed())
+			before := readOutput()
+
+			var stderrBuf bytes.Buffer
+			stub := &mocks.DistillRunner{}
+			driver := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			Expect(stub.RunCallCount()).To(Equal(0))
+			Expect(readOutput()).To(Equal(before))
+		})
+
+		It("keeps the rebuilt cache usable for a later warm run", func() {
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			firstRun(cachePath)
+
+			edited := strings.Replace(
+				readOutput(),
+				"- **A.** alpha",
+				"- **A.** hand-edited",
+				1,
+			)
+			Expect(os.WriteFile(outputPath, []byte(edited), 0o644)).To(Succeed())
+
+			// Second run rebuilds from the hand-edited output.
+			var rebuildBuf bytes.Buffer
+			stub2 := &mocks.DistillRunner{}
+			writer2 := &mocks.DistillWriter{}
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    writer2,
+				Cache:     distill.NewFileCache(cachePath, &rebuildBuf),
+				Stderr:    &rebuildBuf,
+				BatchSize: 100,
+			}
+			Expect(driver2.Run(ctx, sourceDir, outputPath)).To(Succeed())
+			Expect(stub2.RunCallCount()).To(Equal(0))
+			Expect(writer2.WriteCallCount()).To(Equal(0))
+			Expect(readOutput()).To(Equal(edited))
+
+			// Edit rule b only; the rebuilt cache serves a and recompiles b.
+			writeSource(
+				"b.md",
+				"---\ndistill:\n  section: Git\n  id: b\n  order: 20\n---\nbody b EDITED\n",
+			)
+			var stderrBuf bytes.Buffer
+			stub3 := stubRunnerWith(map[string]string{"b": "- **B.** revised"})
+			driver3 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub3,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver3.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			Expect(stub3.RunCallCount()).To(Equal(1))
+			Expect(stderrBuf.String()).To(ContainSubstring("1 cached, 1 compiled"))
+			got := readOutput()
+			Expect(got).To(ContainSubstring("- **A.** hand-edited"))
+			Expect(got).To(ContainSubstring("- **B.** revised"))
+		})
+
+		It("falls back to a cold compile when the output cannot be attributed", func() {
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			firstRun(cachePath)
+
+			// Remove one bullet so the section's count disagrees with the rules.
+			broken := strings.Replace(readOutput(), "- **B.** beta\n", "", 1)
+			Expect(os.WriteFile(outputPath, []byte(broken), 0o644)).To(Succeed())
+
+			var stderrBuf bytes.Buffer
+			stub := stubRunnerWith(nil)
+			driver := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			Expect(stub.RunCallCount()).To(BeNumerically(">", 0))
+			Expect(stderrBuf.String()).To(ContainSubstring(outputPath))
+			Expect(stderrBuf.String()).To(ContainSubstring("cannot be attributed"))
+		})
+
+		It("does not rebuild when the cache file is missing", func() {
+			cachePath := filepath.Join(tempDir, ".distill-cache.json")
+			writeSource("a.md", "---\ndistill:\n  section: Git\n  id: a\n---\nbody a\n")
+
+			// First run writes a valid output but no cache (--no-cache).
+			stub1 := stubRunnerWith(map[string]string{"a": "- **A.** alpha"})
+			driver1 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub1,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, GinkgoWriter),
+				Stderr:    GinkgoWriter,
+				BatchSize: 100,
+				NoCache:   true,
+			}
+			Expect(driver1.Run(ctx, sourceDir, outputPath)).To(Succeed())
+			Expect(cachePath).NotTo(BeAnExistingFile())
+
+			// A missing cache is a cold compile, never a rebuild.
+			var stderrBuf bytes.Buffer
+			stub2 := stubRunnerWith(nil)
+			driver2 := &distill.Driver{
+				Parser:    distill.NewParser(),
+				Runner:    stub2,
+				Writer:    distill.NewWriter(),
+				Cache:     distill.NewFileCache(cachePath, &stderrBuf),
+				Stderr:    &stderrBuf,
+				BatchSize: 100,
+			}
+			Expect(driver2.Run(ctx, sourceDir, outputPath)).To(Succeed())
+
+			Expect(stub2.RunCallCount()).To(BeNumerically(">", 0))
+			Expect(stderrBuf.String()).To(ContainSubstring("missing"))
 		})
 	})
 
