@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore: update Go to 1.27.3 and github.com/bborbe/errors to v1.6.3
+
 ## v0.9.5
 
 - fix: bind the content-hash cache to the output file it was built for. The cache now records the normalized absolute `--output` path and a SHA-256 of the output bytes, and serves entries only when both match. A run whose output differs from the recorded one reads no entries, writes no cache, and warns instead of re-seeding the shared cache from a scratch render. When the recorded path matches but the content hash is stale (or the cache predates the binding), distill rebuilds entries from the committed output with zero `claude` calls; attribution is all-or-nothing and falls back to a cold compile on a section/bullet count mismatch. The output header's `Regenerate:` line now records the normalized absolute path. `--no-cache` is unchanged.
