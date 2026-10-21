@@ -1,9 +1,9 @@
 module github.com/bborbe/distill
 
-go 1.27.2
+go 1.27.3
 
 require (
-	github.com/bborbe/errors v1.6.1
+	github.com/bborbe/errors v1.6.3
 	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.43.1
 	github.com/spf13/cobra v1.10.2
