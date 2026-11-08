@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore: restate the do-not-merge contract in the gate workflow
+
 ## v0.9.6
 
 - chore: update Go to 1.27.3 and github.com/bborbe/errors to v1.6.3
