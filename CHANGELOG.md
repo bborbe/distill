@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore: restate the do-not-merge contract in the gate workflow
+- chore: bump golang.org/x/net to v0.62.0 to clear CVE-2026-78661 and CVE-2026-97045
+
 ## v0.9.6
 
 - chore: update Go to 1.27.3 and github.com/bborbe/errors to v1.6.3
