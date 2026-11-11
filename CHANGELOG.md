@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.10.2
 
 - docs: correct `docs/releasing-distill.md` — the releaser creates the GitHub Release and the cask follows every tag; the "manual, milestone only" section described behaviour that stopped holding somewhere between v0.9.7 and v0.10.0, and described the opposite of what both releases on 2026-11-11 actually did
 
