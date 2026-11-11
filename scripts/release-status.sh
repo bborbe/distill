@@ -40,7 +40,10 @@ if ! git fetch --tags --quiet 2>/dev/null; then
   exit 2
 fi
 
-LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+# Highest version tag, NOT `git describe --tags --abbrev=0`: describe resolves by
+# reachability from HEAD, so on a checkout that is behind origin it reports an
+# older tag and the check silently reads "0 behind" while a newer tag exists.
+LATEST_TAG=$(git tag --sort=-v:refname | head -1)
 if [ -z "$LATEST_TAG" ]; then
   echo "distill: release-status could not resolve the latest tag" >&2
   exit 2
@@ -87,6 +90,7 @@ if [ "$BEHIND" = "unknown" ]; then
 fi
 
 echo "⚠️  brew is $BEHIND version(s) behind $LATEST_TAG"
-echo "    A curated release is a deliberate act: walk scenarios/*.md against a fresh"
-echo "    build, then \`gh release create $LATEST_TAG\` — see docs/releasing-distill.md."
+echo "    The cask follows every tag via the releaser + release workflow. If it has"
+echo "    stopped: walk scenarios/*.md against a fresh build, then check why no"
+echo "    Release was created — see docs/releasing-distill.md."
 exit 1

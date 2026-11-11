@@ -113,9 +113,9 @@ After a successful release, `git status` clean and `git rev-list @{u}..HEAD --co
 
 ### Is brew behind? — `make release-status`
 
-The curated policy above has one failure mode: the human gate simply stops being
-walked, and nothing says so. That is what happened between `v0.6.0` and `v0.9.7`
-— 18 versions of drift with no signal.
+The release pipeline has one failure mode worth watching: the releaser stops creating
+Releases, so the cask stops moving and nothing says so. That is what happened between
+`v0.6.0` and `v0.9.7` — 18 versions of drift with no signal.
 
 `make release-status` is that signal. It prints the latest tag, the cask version
 in `bborbe/homebrew-tap`, and how many versions the cask is behind, and exits

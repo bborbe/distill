@@ -5,9 +5,6 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 - docs: correct `docs/releasing-distill.md` — the releaser creates the GitHub Release and the cask follows every tag; the "manual, milestone only" section described behaviour that stopped holding somewhere between v0.9.7 and v0.10.0, and described the opposite of what both releases on 2026-11-11 actually did
-
-## Unreleased
-
 - docs: reconcile the remaining places that still described the release as a manual, gated act — `release.yml`'s header, `scripts/release-status.sh`'s preamble, and the releaser's step list in `docs/releasing-distill.md` now state that the agent creates the Release and that the scenario gate is operator-side only
 
 ## v0.10.1
