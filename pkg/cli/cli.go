@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -23,6 +24,12 @@ import (
 	"github.com/bborbe/distill/pkg/distill"
 	"github.com/bborbe/distill/pkg/factory"
 )
+
+// version is set at build time via
+// -X github.com/bborbe/distill/pkg/cli.version=<value>
+// (see Makefile LDFLAGS and .goreleaser.yaml). It stays "dev" for a plain
+// `go build`, which is the honest answer for a binary carrying no release.
+var version = "dev"
 
 // UsageError marks a flag-parsing or required-flag failure that must exit 2,
 // distinct from a runtime failure (exit 1).
@@ -57,10 +64,17 @@ func Execute() {
 	}
 }
 
-// Run parses args, wires the driver, and invokes the pipeline. Returns nil on
-// success, a *UsageError when required flags are missing (exit 2), or a
-// runtime error suitable for distill.ExitCode mapping (exit 1).
+// Run parses args, wires the driver, and invokes the pipeline, writing to the
+// process's stdout and stderr. Returns nil on success, a *UsageError when
+// required flags are missing (exit 2), or a runtime error suitable for
+// distill.ExitCode mapping (exit 1).
 func Run(ctx context.Context, args []string) error {
+	return RunWithWriters(ctx, args, os.Stdout, os.Stderr)
+}
+
+// RunWithWriters is Run with explicit output writers, so tests can capture the
+// version line and any command output without touching process globals.
+func RunWithWriters(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	var (
 		sourceDir  string
 		outputPath string
@@ -91,6 +105,14 @@ func Run(ctx context.Context, args []string) error {
 			return driver.Run(cmd.Context(), sourceDir, outputPath)
 		},
 	}
+
+	// cobra handles --version itself, in execute(), before ValidateRequiredFlags
+	// and before RunE — so `distill --version` succeeds with no --source/--output.
+	// Do not register a version flag by hand; that bypasses the early handler.
+	rootCmd.Version = version
+	rootCmd.SetVersionTemplate("distill {{.Version}}\n")
+	rootCmd.SetOut(stdout)
+	rootCmd.SetErr(stderr)
 
 	rootCmd.Flags().
 		StringVar(&sourceDir, "source", "", "directory of source rule markdown files (required)")
