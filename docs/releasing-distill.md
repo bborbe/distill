@@ -39,7 +39,7 @@ If any scenario fails: do **not** install. Fix the regression first, then rerun 
 Nothing on the binary surface changed since the installed binary:
 
 ```bash
-INSTALLED=$(distill --version 2>/dev/null | awk '{print $NF}')   # if/when --version exists
+INSTALLED=$(distill --version 2>/dev/null | awk '{print $NF}')
 git diff "$INSTALLED"..HEAD --name-only | grep -E '\.(go|mod|sum)$|^Makefile$|pkg/distill/system.md$'
 # empty output → installed binary is behaviorally equivalent → skip the gate
 ```

@@ -4,8 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- feat: add `--version` (`-v`), reporting the ldflags build version — a released binary prints its tag, a plain `go build` prints `dev`. Wires the `pkg/cli.version` symbol the existing `-X` ldflag already targeted but which did not exist, so the release gate's installed-binary skip-check runs as written instead of behind an "if/when --version exists" hedge
 - feat: add `make release-status`, which reports how far the Homebrew cask has fallen behind the latest tag and exits non-zero when behind — the curated release policy's failure mode was silent drift (18 versions between v0.6.0 and v0.9.7) and nothing announced it
 - fix: `make check-versions` and `make release-check` referenced `scripts/check-versions.sh`, which did not exist; the single-surface check (top `## vX.Y.Z` section equals the latest tag) is now implemented and the targets run
+- chore: update Go to 1.27.4 to clear GO-2026-6859 (stdlib net/http header race)
 
 ## v0.9.7
 

@@ -21,6 +21,7 @@ Replace the manual "long-form rule → derive a one-liner → paste into CLAUDE.
 
 ```
 distill --source <dir> --output <file> [--title <text>] [--model <name>] [--verbose] [--no-cache]
+distill --version
 ```
 
 | Flag | Required | Meaning |
@@ -31,6 +32,7 @@ distill --source <dir> --output <file> [--title <text>] [--model <name>] [--verb
 | `--model <name>` | no | Claude model name (default: `sonnet`) |
 | `--verbose` | no | Print per-batch prompts + Claude responses to stderr |
 | `--no-cache` | no | Bypass cache load and save (validation and anti-injection always run) |
+| `--version`, `-v` | no | Print `distill <version>` to stdout and exit 0 without requiring `--source`/`--output` |
 
 Exit codes:
 

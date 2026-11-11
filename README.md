@@ -28,6 +28,7 @@ distill --source <rule-folder> --output <claude-md-file> --title "Global Prefere
 | `--model <name>` | no | Claude model name (default: `sonnet`) |
 | `--verbose` | no | Print per-batch prompts + Claude responses to stderr |
 | `--no-cache` | no | Bypass the content-hash cache (validation and anti-injection always run) |
+| `--version`, `-v` | no | Print `distill <version>` and exit 0; needs no other flag |
 
 Exit codes: `0` ok · `1` failure (parse / Claude / IO / validation) · `2` usage error (missing required flag).
 

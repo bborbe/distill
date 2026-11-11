@@ -5,8 +5,10 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -57,6 +59,30 @@ var _ = Describe("Run", func() {
 			var ue *cli.UsageError
 			Expect(errors.As(err, &ue)).To(BeFalse(),
 				"expected runtime error, not *cli.UsageError")
+		})
+	})
+
+	Context("version", func() {
+		It("prints the version and exits 0 with no other flags", func() {
+			var stdout bytes.Buffer
+			err := cli.RunWithWriters(ctx, []string{"--version"}, &stdout, io.Discard)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stdout.String()).To(MatchRegexp(`^distill \S+\n$`),
+				"--source/--output are required, but --version must bypass them")
+		})
+
+		It("prints dev when no ldflag was applied", func() {
+			var stdout bytes.Buffer
+			Expect(cli.RunWithWriters(ctx, []string{"--version"}, &stdout, io.Discard)).
+				To(Succeed())
+			Expect(stdout.String()).To(Equal("distill dev\n"),
+				"a binary built without -X must report dev, never an empty line")
+		})
+
+		It("accepts -v as the shorthand", func() {
+			var stdout bytes.Buffer
+			Expect(cli.RunWithWriters(ctx, []string{"-v"}, &stdout, io.Discard)).To(Succeed())
+			Expect(stdout.String()).To(Equal("distill dev\n"))
 		})
 	})
 })
