@@ -124,6 +124,8 @@ make release-status
 # ⚠️  brew is 18 version(s) behind v0.9.7
 ```
 
+(That output is the 2026-11-11 reading, the state that motivated this check.)
+
 It is **diagnostic, not a gate** — deliberately not wired into `make precommit`,
 since it reads the network and the tap's live state. Run it when you want to know
 whether a curated release is owed; wire it into a cron or a weekly task if you
@@ -149,33 +151,23 @@ after a `system.md` change is a full cold recompile (every cache entry invalidat
 
 **After regenerating**: `grep -c 'No task request' <CLAUDE.md>` must be 0 in both files.
 
-## GitHub Release (manual — milestone only)
+## GitHub Release — created by the releaser, and it ships the cask
 
-`autoRelease` creates a `vX.Y.Z` git tag; that is sufficient for `go install …@vX.Y.Z`.
-A **GitHub Release** (Releases tab, notes, feed) is a separate deliberate act — create one
-only for milestones, not every patch tag.
+`github-releaser-agent` (`ben-s-github-releaser[bot]`) cuts the tag **and** creates the
+GitHub Release in the same pass, taking the `## vX.Y.Z` CHANGELOG section as its notes.
+`.github/workflows/release.yml` then triggers on `release: published`, runs goreleaser,
+attaches the darwin/linux archives, and pushes the cask to
+[`bborbe/homebrew-tap`](https://github.com/bborbe/homebrew-tap). So on the current setup the
+tap follows every tag and there is no manual publish step.
 
-**Publishing a Release also ships the Homebrew cask.** `.github/workflows/release.yml`
-triggers on `release: published` and runs goreleaser, which builds darwin/linux archives,
-attaches them to this Release, and pushes the cask to
-[`bborbe/homebrew-tap`](https://github.com/bborbe/homebrew-tap). So publishing here is what
-makes `brew install bborbe/tap/distill` serve the new version.
+⚠️ **This section said the opposite until 2026-11-11, and the history is on its side.** Of
+the 31 tags up to `v0.9.7`, only `v0.6.0` ever had a Release — the tap sat 18 versions behind
+and `brew install` served a binary built 2026-08-09. The releaser's behaviour changed at some
+point between `v0.9.7` and `v0.10.0`; nothing in this repo documents when. `make release-status`
+is the live check, and it is the only claim here you should trust without re-verifying.
 
-**A tag alone never reaches brew.** This is deliberate: `autoRelease` tags every merge, and
-publishing a cask per tag would bypass the gate above. The corollary of "milestones only" is
-that brew users stay on the last promoted version until you promote again — `go install
-@latest` is the fast track, brew is the verified one.
-
-Create a Release **only after** all three hold:
-
-1. Every `scenarios/*.md` passed against a freshly built binary (the gate above).
-2. `make check-versions` reports the CHANGELOG top section and the latest tag agree.
-3. The `## vX.Y.Z` notes say what a user should care about, not the raw commit log.
-
-**Skipping is cumulative, not permanent.** It is fine to skip several auto-tags and promote
-one Release that covers them all — that is what "milestones only" means. What is *not* fine
-is skipping indefinitely: `make release-status` exists to make the gap visible, and a
-double-digit lag means the tap is serving a binary nobody should install.
+Manual creation is the **fallback** — for a stalled releaser, or a release that has to be
+re-cut:
 
 ```bash
 TAG=$(git describe --tags --abbrev=0)
@@ -189,7 +181,17 @@ matches `^## v` itself — so the range opens and closes on that one line, and t
 `| head -n -1` then stripped it, yielding **empty notes**. The flag form above skips the
 heading and stops at the next one.
 
-Then confirm the cask actually shipped — publishing the Release only *starts* the workflow:
+Before a **manual** publish, all three should hold:
+
+1. Every `scenarios/*.md` passed against a freshly built binary (the gate above).
+2. `make check-versions` reports the CHANGELOG top section and the latest tag agree.
+3. The `## vX.Y.Z` notes say what a user should care about, not the raw commit log.
+
+`make release-status` is the canary for all of this: it exits non-zero when the cask has
+fallen behind the latest tag, which is the shape a stalled releaser takes.
+
+After any release — automatic or manual — confirm the cask actually shipped; creating the
+Release only *starts* the workflow:
 
 ```bash
 gh run list --workflow=release.yml --limit 1          # workflow ran and succeeded
