@@ -31,6 +31,13 @@ check-versions:
 release-check: precommit check-versions
 	@echo "ready to release"
 
+# Diagnostic, not a gate: reports how far the Homebrew cask has fallen behind the
+# latest tag. Exits non-zero when behind so it can run unattended. See
+# scripts/release-status.sh for why the curated release policy needs this signal.
+.PHONY: release-status
+release-status:
+	@bash scripts/release-status.sh
+
 .PHONY: ensure
 ensure:
 	go mod tidy -e

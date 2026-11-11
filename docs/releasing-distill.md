@@ -83,6 +83,33 @@ git log "$(git describe --tags --abbrev=0)"..HEAD --oneline     # unpushed commi
 
 After a successful release, `git status` clean and `git rev-list @{u}..HEAD --count` = 0.
 
+### Is brew behind? — `make release-status`
+
+The curated policy above has one failure mode: the human gate simply stops being
+walked, and nothing says so. That is what happened between `v0.6.0` and `v0.9.7`
+— 18 versions of drift with no signal.
+
+`make release-status` is that signal. It prints the latest tag, the cask version
+in `bborbe/homebrew-tap`, and how many versions the cask is behind, and exits
+non-zero when it is behind:
+
+```bash
+make release-status
+#   latest tag                       v0.9.7
+#   brew cask (bborbe/homebrew-tap)  0.6.0
+#   versions behind                  18
+# ⚠️  brew is 18 version(s) behind v0.9.7
+```
+
+It is **diagnostic, not a gate** — deliberately not wired into `make precommit`,
+since it reads the network and the tap's live state. Run it when you want to know
+whether a curated release is owed; wire it into a cron or a weekly task if you
+want the drift to announce itself.
+
+`make check-versions` is the other half: it asserts the top `## vX.Y.Z` section in
+`CHANGELOG.md` equals the latest git tag, so a release commit that landed half-way
+(a tag without a CHANGELOG section, or the reverse) is caught before you publish.
+
 ## Install (the moment the new version reaches consumers)
 
 ```bash
