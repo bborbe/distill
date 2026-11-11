@@ -2,15 +2,15 @@
 #
 # Reports how far the Homebrew cask has fallen behind the latest tag.
 #
-# distill's release policy is CURATED: a GitHub Release (and therefore a cask
-# bump) is a deliberate act, not a per-tag automation, because the scenario gate
-# drives real `claude` and cannot run in CI. The failure mode that policy allows
-# is silent drift — the gate simply stops being walked, and nothing says so.
-# That is what happened between v0.6.0 and v0.9.7: 18 versions, no signal.
+# The cask is supposed to follow every tag: `github-releaser-agent` creates the
+# GitHub Release and .github/workflows/release.yml pushes the cask from it. That
+# did not happen between v0.6.0 and v0.9.7 — 31 tags, one Release, 18 versions of
+# tap drift — and nothing announced it.
 #
-# This check is the signal. It is diagnostic, not a gate: it is deliberately NOT
-# wired into `make precommit`, and it exits non-zero only so it can be run
-# unattended (cron, a weekly task, CI) and alert on drift.
+# This check is the canary for that shape: a cask behind the latest tag means the
+# releaser stalled or the release workflow failed. It is diagnostic, not a gate:
+# deliberately NOT wired into `make precommit`, and it exits non-zero only so it
+# can run unattended (cron, a weekly task, CI) and alert on drift.
 #
 # Usage:
 #   make release-status
