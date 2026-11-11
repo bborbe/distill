@@ -68,6 +68,11 @@ and the agent:
 1. Classifies the semver bump from `## Unreleased` prefixes (`feat:` → minor, `fix:` → patch, `BREAKING:` → major)
 2. Rewrites `## Unreleased` → `## vX.Y.Z`
 3. Commits `release vX.Y.Z`, tags `vX.Y.Z`, pushes tag + commit
+4. Creates the GitHub Release for that tag, with the `## vX.Y.Z` section as its notes — which is what fires `release.yml` and moves the cask
+
+Step 4 is the one that is easy to get wrong when reasoning about this repo: it means the
+cask follows every tag, and the scenario gate below is **operator-side only** — nothing in
+the pipeline blocks a publish on it.
 
 Picks up within ~10 min of the merge. To force an immediate scan: `/github-release-repo-trigger`.
 
@@ -108,9 +113,9 @@ After a successful release, `git status` clean and `git rev-list @{u}..HEAD --co
 
 ### Is brew behind? — `make release-status`
 
-The curated policy above has one failure mode: the human gate simply stops being
-walked, and nothing says so. That is what happened between `v0.6.0` and `v0.9.7`
-— 18 versions of drift with no signal.
+The release pipeline has one failure mode worth watching: the releaser stops creating
+Releases, so the cask stops moving and nothing says so. That is what happened between
+`v0.6.0` and `v0.9.7` — 18 versions of drift with no signal.
 
 `make release-status` is that signal. It prints the latest tag, the cask version
 in `bborbe/homebrew-tap`, and how many versions the cask is behind, and exits
@@ -128,8 +133,8 @@ make release-status
 
 It is **diagnostic, not a gate** — deliberately not wired into `make precommit`,
 since it reads the network and the tap's live state. Run it when you want to know
-whether a curated release is owed; wire it into a cron or a weekly task if you
-want the drift to announce itself.
+whether the releaser is keeping the tap current; wire it into a cron or a weekly
+task if you want the drift to announce itself.
 
 `make check-versions` is the other half: it asserts the top `## vX.Y.Z` section in
 `CHANGELOG.md` equals the latest git tag, so a release commit that landed half-way

@@ -2,10 +2,17 @@ name: Release
 
 # Triggered when a GitHub Release is PUBLISHED — deliberately not on tag push.
 #
-# distill auto-releases on merge, so a tag-triggered workflow would publish a
-# Homebrew cask for every merge and bypass the scenario gate entirely. Promotion
-# to a Release is the human gate: walk the scenario, then `gh release create <tag>`.
-# See docs/releasing-distill.md.
+# A tag-triggered workflow would publish a Homebrew cask for every merge. The
+# Release step was designed as that human gate: walk the scenario, then publish.
+#
+# ⚠️ That gate is not currently enforced: `github-releaser-agent` creates the
+# GitHub Release itself, within seconds of the tag, so this workflow runs for
+# every merge anyway. Measured 2026-11-11 on v0.10.0 and v0.10.1 (author
+# ben-s-github-releaser[bot]); between v0.6.0 and v0.9.7 the same agent created
+# no Releases at all, which is where the 18-version tap drift came from.
+#
+# Treat the scenario gate as operator-side and verify it with
+# `make release-status`, not with this trigger. See docs/releasing-distill.md.
 on:
   release:
     types: [published]
