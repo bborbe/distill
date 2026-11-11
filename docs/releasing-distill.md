@@ -27,6 +27,10 @@ go build -C ~/Documents/workspaces/distill -o /tmp/new-distill .
 ls scenarios/*.md   # 001-compile-anti-injection.md (+ any later ones)
 ```
 
+Every scenario is walked by hand today — there is no `scenarios/helper/run-NNN-all.sh`. When
+porting them to scripted helpers, follow the dark-factory pattern (`run-NNN-all.sh` builds
+the binary, isolates `HOME`, asserts exit codes) rather than inventing a second convention.
+
 `scenarios/001-compile-anti-injection.md` is the load-bearing one: it drives real
 `claude` with a hijack-bait rule + a planted `CLAUDE.md` and asserts the output has
 proper bullets, zero `No task request` junk, and no ambient-CLAUDE.md leak. It is an
@@ -40,6 +44,13 @@ Nothing on the binary surface changed since the installed binary:
 
 ```bash
 INSTALLED=$(distill --version 2>/dev/null | awk '{print $NF}')
+# The skip needs a real release tag to diff against. A dev build, a VCS-stamped
+# "<tag>+dirty", or an empty answer all mean there is nothing to compare — walk
+# the gate instead of skipping it.
+case "$INSTALLED" in
+  v[0-9]*.[0-9]*.[0-9]*) : ;;
+  *) echo "installed binary reports '$INSTALLED' — no release tag to compare, walk the gate"; exit 1 ;;
+esac
 git diff "$INSTALLED"..HEAD --name-only | grep -E '\.(go|mod|sum)$|^Makefile$|pkg/distill/system.md$'
 # empty output → installed binary is behaviorally equivalent → skip the gate
 ```
@@ -66,6 +77,17 @@ owns the release commit; a local version races it.
 **Why dark-factory does NOT tag**: `.dark-factory.yaml: autoRelease: false` — feature-branch
 daemon runs push commits without tags. The tag lands once, on master, post-merge, via the
 releaser agent. This is the deliberate feature-branch hygiene pattern.
+
+There are two release drivers in a bborbe repo; only one is on here:
+
+| Scenario | dark-factory (`.dark-factory.yaml: autoRelease: false`) | `github-releaser-agent` (`.maintainer.yaml: release.autoRelease: true`) |
+|---|---|---|
+| Daemon runs a prompt on a feature branch | does not fire — the flag is off | does not fire (commits not on master yet) |
+| Direct PR + merge | does not fire (no daemon involvement) | **fires** |
+| Daemon runs on master directly | does not fire — the flag is off | fires post-merge |
+
+Turning the daemon's flag on would race the releaser for the same version number, which is
+why only one driver is enabled.
 
 ### Manual fallback (only if the releaser stalls / `.maintainer.yaml` absent)
 
@@ -142,6 +164,17 @@ makes `brew install bborbe/tap/distill` serve the new version.
 publishing a cask per tag would bypass the gate above. The corollary of "milestones only" is
 that brew users stay on the last promoted version until you promote again — `go install
 @latest` is the fast track, brew is the verified one.
+
+Create a Release **only after** all three hold:
+
+1. Every `scenarios/*.md` passed against a freshly built binary (the gate above).
+2. `make check-versions` reports the CHANGELOG top section and the latest tag agree.
+3. The `## vX.Y.Z` notes say what a user should care about, not the raw commit log.
+
+**Skipping is cumulative, not permanent.** It is fine to skip several auto-tags and promote
+one Release that covers them all — that is what "milestones only" means. What is *not* fine
+is skipping indefinitely: `make release-status` exists to make the gap visible, and a
+double-digit lag means the tap is serving a binary nobody should install.
 
 ```bash
 TAG=$(git describe --tags --abbrev=0)

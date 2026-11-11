@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -30,6 +31,25 @@ import (
 // (see Makefile LDFLAGS and .goreleaser.yaml). It stays "dev" for a plain
 // `go build`, which is the honest answer for a binary carrying no release.
 var version = "dev"
+
+// resolveVersion prefers the ldflag-set version and falls back to the module
+// version recorded in the build info. The fallback matters because
+// `go install github.com/bborbe/distill@latest` — the path both consumer
+// Makefiles use — applies no -X ldflag, so without it that binary would report
+// "dev" and the release gate's installed-binary check could not run.
+func resolveVersion() string {
+	if version != "" && version != "dev" {
+		return version
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return version
+	}
+	if v := info.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+	return version
+}
 
 // UsageError marks a flag-parsing or required-flag failure that must exit 2,
 // distinct from a runtime failure (exit 1).
@@ -109,7 +129,7 @@ func RunWithWriters(ctx context.Context, args []string, stdout, stderr io.Writer
 	// cobra handles --version itself, in execute(), before ValidateRequiredFlags
 	// and before RunE — so `distill --version` succeeds with no --source/--output.
 	// Do not register a version flag by hand; that bypasses the early handler.
-	rootCmd.Version = version
+	rootCmd.Version = resolveVersion()
 	rootCmd.SetVersionTemplate("distill {{.Version}}\n")
 	rootCmd.SetOut(stdout)
 	rootCmd.SetErr(stderr)
