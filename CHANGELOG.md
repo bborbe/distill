@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.10.1
 
 - fix: `--version` falls back to the module version recorded in the build info when no `-X` ldflag was applied, so a binary from `go install github.com/bborbe/distill@latest` — the path both consumer Makefiles use — reports its release instead of `dev`
 - fix: harden the release tooling against its own failure modes — `release-status` now exits 2 (not 1 with a misleading message) when it cannot place the cask version among the tags, and fails loudly when `git fetch` fails instead of reporting a stale count; `check-versions` reports a missing `## vX.Y.Z` heading instead of dying silently under `set -e`
