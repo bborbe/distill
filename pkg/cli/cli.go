@@ -38,17 +38,23 @@ var version = "dev"
 // Makefiles use — applies no -X ldflag, so without it that binary would report
 // "dev" and the release gate's installed-binary check could not run.
 func resolveVersion() string {
-	if version != "" && version != "dev" {
-		return version
-	}
 	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return version
+	return resolveVersionFrom(version, info, ok)
+}
+
+// resolveVersionFrom is resolveVersion with the build info injected, so the
+// fallback can be tested without controlling the test binary's own build info.
+func resolveVersionFrom(ldflagVersion string, info *debug.BuildInfo, ok bool) string {
+	if ldflagVersion != "" && ldflagVersion != "dev" {
+		return ldflagVersion
+	}
+	if !ok || info == nil {
+		return ldflagVersion
 	}
 	if v := info.Main.Version; v != "" && v != "(devel)" {
 		return v
 	}
-	return version
+	return ldflagVersion
 }
 
 // UsageError marks a flag-parsing or required-flag failure that must exit 2,

@@ -44,13 +44,14 @@ Nothing on the binary surface changed since the installed binary:
 
 ```bash
 INSTALLED=$(distill --version 2>/dev/null | awk '{print $NF}')
-# The skip needs a real release tag to diff against. A dev build, a VCS-stamped
-# "<tag>+dirty", or an empty answer all mean there is nothing to compare — walk
-# the gate instead of skipping it.
-case "$INSTALLED" in
-  v[0-9]*.[0-9]*.[0-9]*) : ;;
-  *) echo "installed binary reports '$INSTALLED' — no release tag to compare, walk the gate"; exit 1 ;;
-esac
+# The skip needs a bare release tag to diff against. `dev`, a VCS-stamped
+# `v0.10.0+dirty`, a `-N-gSHA` describe string and an empty answer all mean there
+# is nothing to compare — walk the gate instead of skipping it. Anchor both ends:
+# an unanchored `v[0-9]*.[0-9]*.[0-9]*` glob matches `v0.10.0+dirty` too.
+if ! printf '%s' "$INSTALLED" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+  echo "installed binary reports '$INSTALLED' — no release tag to compare, walk the gate"
+  exit 1
+fi
 git diff "$INSTALLED"..HEAD --name-only | grep -E '\.(go|mod|sum)$|^Makefile$|pkg/distill/system.md$'
 # empty output → installed binary is behaviorally equivalent → skip the gate
 ```
