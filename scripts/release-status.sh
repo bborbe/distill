@@ -35,7 +35,10 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 2
 fi
 
-git fetch --tags --quiet 2>/dev/null || true
+if ! git fetch --tags --quiet 2>/dev/null; then
+  echo "distill: release-status could not fetch tags — the count would be stale" >&2
+  exit 2
+fi
 
 LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 if [ -z "$LATEST_TAG" ]; then
@@ -75,6 +78,12 @@ report "versions behind" "$BEHIND"
 if [ "$BEHIND" = "0" ]; then
   echo "✅ brew serves the latest tag"
   exit 0
+fi
+
+if [ "$BEHIND" = "unknown" ]; then
+  echo "distill: release-status cannot place cask version $CASK_VERSION among the tags" >&2
+  echo "    (cask tag $CASK_TAG is not a tag in this repo — the tap may point at a tag that was never pushed here)" >&2
+  exit 2
 fi
 
 echo "⚠️  brew is $BEHIND version(s) behind $LATEST_TAG"

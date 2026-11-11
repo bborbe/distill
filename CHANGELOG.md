@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- fix: `--version` falls back to the module version recorded in the build info when no `-X` ldflag was applied, so a binary from `go install github.com/bborbe/distill@latest` — the path both consumer Makefiles use — reports its release instead of `dev`
+- fix: harden the release tooling against its own failure modes — `release-status` now exits 2 (not 1 with a misleading message) when it cannot place the cask version among the tags, and fails loudly when `git fetch` fails instead of reporting a stale count; `check-versions` reports a missing `## vX.Y.Z` heading instead of dying silently under `set -e`
+- docs: `docs/releasing-distill.md` gains the three publish preconditions, the two-driver table, cumulative-skip guidance, and a `dev`/dirty guard on the installed-binary skip-check
+
 ## v0.10.0
 
 - feat: add `--version` (`-v`), reporting the ldflags build version — a released binary prints its tag, a plain `go build` prints `dev`. Wires the `pkg/cli.version` symbol the existing `-X` ldflag already targeted but which did not exist, so the release gate's installed-binary skip-check runs as written instead of behind an "if/when --version exists" hedge

@@ -19,9 +19,15 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
-CHANGELOG_VERSION=$(grep -m1 '^## v' CHANGELOG.md | sed 's/^## v//')
+CHANGELOG_VERSION=$(grep -m1 '^## v' CHANGELOG.md 2>/dev/null | sed 's/^## v//' || true)
 LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
 LATEST_TAG_VERSION=${LATEST_TAG#v}
+
+if [ -z "$CHANGELOG_VERSION" ]; then
+  echo "❌ CHANGELOG.md has no '## vX.Y.Z' section — nothing to align against" >&2
+  echo "    Every released version needs its section; the releaser rewrites ## Unreleased in place." >&2
+  exit 1
+fi
 
 report() {
   printf "  %-44s %s\n" "$1" "$2"
