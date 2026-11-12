@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.10.3
 
 - chore: migrate the Homebrew cask quarantine hook from the deprecated `install` stanza to `install_steps` (goreleaser#6873) and bump the goreleaser action pin to v2.20.1 so the new key is accepted
 
