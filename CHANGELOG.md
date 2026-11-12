@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore: migrate the Homebrew cask quarantine hook from the deprecated `install` stanza to `install_steps` (goreleaser#6873) and bump the goreleaser action pin to v2.20.1 so the new key is accepted
+
 ## v0.10.2
 
 - docs: correct `docs/releasing-distill.md` — the releaser creates the GitHub Release and the cask follows every tag; the "manual, milestone only" section described behaviour that stopped holding somewhere between v0.9.7 and v0.10.0, and described the opposite of what both releases on 2026-11-11 actually did
