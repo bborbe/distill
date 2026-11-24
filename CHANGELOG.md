@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v0.10.5
 
 - chore: remove stale vulnerability ignore IDs that no longer apply (govulncheck, trivy)
 - fix: install Trivy from a pinned, checksum-verified release tarball instead of the apt-repo route that needed the removed `apt-key` helper
