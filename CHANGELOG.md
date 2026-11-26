@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- chore: update github.com/bborbe/errors to v1.7.1, github.com/onsi/ginkgo/v2 to v2.33.1, github.com/onsi/gomega to v1.44.0
+
 ## v0.10.5
 
 - chore: remove stale vulnerability ignore IDs that no longer apply (govulncheck, trivy)
